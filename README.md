@@ -1,5 +1,15 @@
 # WebG850
 
+> A browser-based emulator/simulator for the Sharp **PC-G850V / PC-G850VS** pocket computer.
+>
+> This is a clean-room implementation: it does not include, distribute, or reference any ROM image. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+>
+> Currently under development — the specification has been drafted, but implementation has not yet started.
+>
+> Documentation is in Japanese.
+
+---
+
 ブラウザで動く、シャープ **PC-G850V / PC-G850VS** のエミュレータ／シミュレータです。
 
 ## ROM を使わない独立実装
