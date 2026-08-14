@@ -1,5 +1,15 @@
 # Contributing
 
+> WebG850 is a **clean-room implementation that does not reference any ROM image**.
+>
+> **We welcome:** behavior reports (what worked / didn't, which model you tested), bug reports, and pointers to publicly available documentation.
+>
+> **We cannot accept:** ROM disassembly results, explanations of internal ROM processing, or ROM images themselves. Receiving such material — even sent in good faith — would make it impossible to explain the provenance of this implementation, so please refrain from sending it.
+>
+> See the Japanese sections below for full details.
+
+---
+
 WebG850 は **ROM を参照しない独立実装**として作っています。そのため、情報の受け取り方に
 他のプロジェクトとは違う制約があります。ご協力いただく前に必ずお読みください。
 
