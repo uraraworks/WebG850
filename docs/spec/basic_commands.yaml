@@ -1,0 +1,3053 @@
+meta:
+  source: Sharp PC-G850V(S) Bedienungsanleitung (Jörg Wrabetz 編, v1.3 2017) 第13章 BASIC KOMMANDO LEXIKON,
+    p.182-252
+  source_note: シャープ純正ではない第三者編纂のドイツ語版マニュアル。OCR 由来の誤認を含む。数値の細部は公式資料または実測で裏を取ること。
+  extracted: '2026-08-14'
+commands:
+  - name: ABS
+    aliases: []
+    kind: function
+    category: math
+    format: ABS(<数値式>)
+    summary: 数値式の絶対値を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.182
+    notes: null
+  - name: ACS
+    aliases: []
+    kind: function
+    category: math
+    format: ACS(<数値式>)
+    summary: 逆余弦(arccos)を返す。単位は現在の角度モード(DEGREE/GRAD/RADIAN)に従う。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: -1 <= x <= 1
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.182 / manual_en p.163
+    notes: '主値域: DEGモード 0〜180°, RADモード 0〜π, GRADモード 0〜200gon。独: OCR崩れ「-1 s X
+      s 1」、英: 明瞭に「-1 ≤ expression ≤ 1」。両版一致で範囲確定、ocr_suspectを解除。'
+  - name: AHC
+    aliases: []
+    kind: function
+    category: math
+    format: AHC(<数値式>)
+    summary: 逆双曲線余弦(arcosh, cosh^-1x)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.183
+    notes: 実行例 AHC 10 → 2.993222846 は arcosh(10)=ln(10+√99)≈2.9932228 と一致し、逆双曲線余弦であると確認できる。
+  - name: AHS
+    aliases: []
+    kind: function
+    category: math
+    format: AHS(<数値式>)
+    summary: 逆双曲線正弦(arsinh, sinh^-1x)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.183
+    notes: 実行例 AHS 27.3 → 4.000369154 は arsinh(27.3)=ln(27.3+√(27.3^2+1))≈4.0003692 と一致し、逆双曲線正弦であると確認できる。
+  - name: AHT
+    aliases: []
+    kind: function
+    category: math
+    format: AHT(<数値式>)
+    summary: 逆双曲線正接(artanh, tanh^-1x)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.183
+    notes: 実行例 AHT 0.7 → 0.867300527 は artanh(0.7)=0.5*ln(1.7/0.3)≈0.8673005 と一致し、逆双曲線正接であると確認できる。
+  - name: AND
+    aliases: []
+    kind: operator
+    category: math
+    format: <数値式1> AND <数値式2>
+    summary: 2つの数値をそれぞれ-32768〜32767の16bit2の補数表現に変換し、対応するビットごとの論理積(AND)を取る。比較式(真=-1/偽=0)同士に使うとIF文の論理AND条件としても機能する。
+    params:
+      - name: 数値式1
+        type: numeric
+        optional: false
+        range: -32768 <= x <= 32767
+        notes: null
+      - name: 数値式2
+        type: numeric
+        optional: false
+        range: -32768 <= x <= 32767
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.42 (5.11 論理式)
+    notes: 'ビット演算であることは本文に明記: 「2つの数値は16桁の2進数(2の補数形式)に変換され、対応するビットのペアごとに論理演算が評価される」。結果の真理値表は原書では図版(未OCR)で本文からは読めない。真=-1(全ビット1)・偽=0という表現規約(5章冒頭, p.42直前)と組み合わさることで、比較式に対するIF文の論理ANDとしても違和感なく働く。'
+  - name: ASC
+    aliases: []
+    kind: function
+    category: string
+    format: ASC(<文字列式>)
+    summary: 文字列の先頭1文字のASCIIコードを返す。
+    params:
+      - name: 文字列式
+        type: string
+        optional: false
+        range: null
+        notes: 2文字以上の場合は先頭文字のコードを返す。
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.183
+    notes: null
+  - name: ASN
+    aliases: []
+    kind: function
+    category: math
+    format: ASN(<数値式>)
+    summary: 逆正弦(arcsin)を返す。単位は現在の角度モードに従う。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: -1 <= x <= 1
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.184 / manual_en p.164
+    notes: '主値域: DEGモード -90°〜90°, RADモード -π/2〜π/2, GRADモード -100〜100gon。独: OCR崩れ「-1
+      _ X _ 1」、英: 明瞭に「-1 ≤ expression ≤ 1」。両版一致で範囲確定、ocr_suspectを解除。'
+  - name: ATN
+    aliases: []
+    kind: function
+    category: math
+    format: ATN(<数値式>)
+    summary: 逆正接(arctan)を返す。単位は現在の角度モードに従う。引数に範囲制限は無い。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.185
+    notes: '主値域: DEGモード -90°〜90°, RADモード -π/2〜π/2, GRADモード -100〜100gon。'
+  - name: AUTO
+    aliases: []
+    kind: command
+    category: system
+    format: AUTO [[<開始行番号>][,<増分>]]
+    summary: PROモードでの行番号を自動生成する。パラメータ無しは10開始・10刻み。
+    params:
+      - name: 開始行番号
+        type: line_no
+        optional: true
+        range: null
+        notes: 省略時10。
+      - name: 増分
+        type: numeric
+        optional: true
+        range: null
+        notes: 省略時10。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.185
+    notes: 既存行番号に当たると当該行を表示。BREAK/CLキー、または空行でENTERで解除。
+  - name: BEEP
+    aliases: []
+    kind: statement
+    category: hardware
+    format: BEEP <回数>[,[<音程>][,<持続時間>]]
+    summary: 指定回数・音程・持続時間で音を鳴らす。
+    params:
+      - name: 回数
+        type: numeric
+        optional: false
+        range: 0-65535
+        notes: null
+      - name: 音程
+        type: numeric
+        optional: true
+        range: 0-255
+        notes: 0で約7kHz、255で約230Hz(値が大きいほど低音)。省略時4kHz相当。
+      - name: 持続時間
+        type: numeric
+        optional: true
+        range: 0-65279
+        notes: 省略時160。周波数が低いほど実際の持続は長くなる。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.186
+    notes: 原文に「ACHTUNG BEIM G850 NICHT ANGESCHLOSSEN(G850では未接続=鳴らない)」との注記あり。G850V(S)での扱いは未確認。
+  - name: BLOAD
+    aliases: []
+    kind: command
+    category: file
+    format: BLOAD
+    summary: シリアルインターフェース経由でBASICプログラムを他のPC-G850から受信する。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.187
+    notes: 内部プロトコル使用のためPCとのデータ交換には使えない。相手側でBSAVEを同時実行する必要がある。
+  - name: BLOAD ?
+    aliases: []
+    kind: command
+    category: file
+    format: BLOAD ?
+    summary: シリアルインターフェース経由で受信したプログラムをメモリ上のプログラムと比較検証する。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.188
+    notes: 内部プロトコルのためPC接続には使えない。
+  - name: BLOAD M
+    aliases: []
+    kind: command
+    category: file
+    format: BLOAD M [<開始アドレス>]
+    summary: シリアルインターフェース経由でバイナリコードを他のPC-G850から受信する。
+    params:
+      - name: 開始アドレス
+        type: numeric
+        optional: true
+        range: null
+        notes: プログラム内で指定されたアドレスを上書きする。
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.187
+    notes: 相手側でBSAVE Mを同時実行する必要がある。内部プロトコルのためPC接続には使えない。
+  - name: BSAVE
+    aliases: []
+    kind: command
+    category: file
+    format: BSAVE
+    summary: シリアルインターフェース経由でBASICプログラムを他のPC-G850へ送信する。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.188
+    notes: 相手側で先にBLOADを実行しておく必要がある。
+  - name: BSAVE M
+    aliases: []
+    kind: command
+    category: file
+    format: BSAVE M [<開始アドレス>,<終了アドレス>[,<起動アドレス>]]
+    summary: シリアルインターフェース経由でバイナリコードを他のPC-G850へ送信する。
+    params:
+      - name: 開始アドレス
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+      - name: 終了アドレス
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+      - name: 起動アドレス
+        type: numeric
+        optional: true
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.188
+    notes: 相手側で先にBLOAD Mを実行しておく必要がある。
+  - name: CALL
+    aliases: []
+    kind: statement
+    category: hardware
+    format: CALL [#<バンク>,]<アドレス>
+    summary: 機械語プログラムを呼び出して実行し、終了後に呼び出し元へ戻る。
+    params:
+      - name: バンク
+        type: numeric
+        optional: true
+        range: 0-7
+        notes: 省略時バンク0。
+      - name: アドレス
+        type: numeric
+        optional: false
+        range: 0-65535 (&0-&FFFF)
+        notes: 省略不可。
+    returns: none
+    errors: []
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.189
+    notes: null
+  - name: CHR$
+    aliases: []
+    kind: function
+    category: string
+    format: CHR$(<整数値>)
+    summary: 指定したASCIIコードに対応する文字を返す。
+    params:
+      - name: 整数値
+        type: numeric
+        optional: false
+        range: null
+        notes: 型はInteger。
+    returns: string
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.189
+    notes: null
+  - name: CIRCLE
+    aliases: []
+    kind: statement
+    category: graphics
+    format: CIRCLE (<x>,<y>),<半径>[,[開始角],[終了角],[縦横比][,S|R|X],[パターン]]
+    summary: 円・円弧・扇形・楕円を描画する。
+    params:
+      - name: x
+        type: numeric
+        optional: false
+        range: 表示域0-143、指定可能範囲-32768〜32767
+        notes: null
+      - name: y
+        type: numeric
+        optional: false
+        range: 表示域0-47、指定可能範囲-32768〜32767
+        notes: null
+      - name: 半径
+        type: numeric
+        optional: false
+        range: 1-32767
+        notes: null
+      - name: 開始角
+        type: numeric
+        optional: true
+        range: '独: 0-360 / 英: -360〜360(食い違い、要実測)'
+        notes: 省略時0(全円)。
+      - name: 終了角
+        type: numeric
+        optional: true
+        range: '独: 0-360 / 英: -360〜360(食い違い、要実測)'
+        notes: 省略時360(全円)。
+      - name: 縦横比
+        type: numeric
+        optional: true
+        range: null
+        notes: ry/rx。省略時1(正円)。
+      - name: S|R|X
+        type: any
+        optional: true
+        range: S(セット,既定)|R(消去)|X(反転)
+        notes: null
+      - name: パターン
+        type: numeric
+        optional: true
+        range: 0-6
+        notes: 0=塗りなし(既定),1=横線,2=縦線,3=右上がり斜線,4=右下がり斜線,5=3+4,6=全塗り。
+    returns: none
+    errors: []
+    phase: 1
+    status: partial
+    ocr_suspect: true
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.190 / manual_en p.183
+    notes: '【両版で食い違い、要実測】開始角/終了角の範囲を独語版は「0-360、標準は0/360(全円)」と明記するが、英語版は「-360〜360」と明記した上で「負値は原点から円弧への半径線を描く(扇形になる)、正値は弧のみ」と符号の意味まで説明する。両版共通の実行例
+      CIRCLE(71,23),20,-45,-135 は独語自身の「0-360」という記述と矛盾しており、独語側の範囲記述が単純な誤記である可能性が高いが、どちらが実機の実際の受理範囲かは実測しないと断定できないため範囲は確定させない。書式行の角括弧の対応崩れ(閉じ括弧が1つ多い)は英語版でも同じ位置で再現しており、共通のOCR/組版起因の欠陥で未解決。読み取れた通りを収録。'
+  - name: CLEAR
+    aliases: []
+    kind: command
+    category: var
+    format: CLEAR
+    summary: 全ての変数を消去する。標準変数A〜Z/@(1)〜@(26)は0、文字列変数はヌル文字列に初期化される。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.191
+    notes: プログラム中でも使用可能。DIM済み配列も消去される。
+  - name: CLOAD
+    aliases: []
+    kind: command
+    category: file
+    format: null
+    summary: 中間コード表にのみ存在。仕様未確定。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: needs_measurement
+    ocr_suspect: false
+    verified_by: none
+    verifiable_by_measurement: true
+    source: basic_tokens.yaml のみ
+    notes: 底本マニュアルに記載なし(manual.txtを全文検索して確認)。英語版eng.txtでも同様に中間コード表(付録)以外に出現しないことを確認済み(両版一致で「記載なし」を確認、内容そのものは依然未確定)。カセット機能はPC-G850/G850Sのみに存在し、対象機種のG850V/VSには無いことが本プロジェクトの調査で判明している。トークンコードは残存しているが本体には対応する周辺機器(カセットI/F)が無いため、実装対象外に近いと判断しphase:3とした。
+  - name: CLOSE
+    aliases: []
+    kind: statement
+    category: file
+    format: CLOSE [#<ファイル番号>[,#<ファイル番号>,….]]
+    summary: 指定したファイルを閉じる。省略時は全ての開いているファイルを閉じる。
+    params:
+      - name: ファイル番号
+        type: file_no
+        optional: true
+        range: null
+        notes: 複数指定可。
+    returns: none
+    errors:
+      - 既に開いているファイルを再度開こうとするとERRORになる（原文に具体的コード記載なし）
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.191
+    notes: END/NEW/RUN/LOAD実行時や電源OFF時、プログラム編集時にも自動的に閉じられる。
+  - name: CLS
+    aliases: []
+    kind: statement
+    category: io
+    format: CLS
+    summary: 画面を消去し、カーソルを左上(0,0)へ移動する。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.193
+    notes: null
+  - name: CONT
+    aliases: []
+    kind: command
+    category: system
+    format: CONT
+    summary: STOP文・BREAKキー・PRINT文による中断からプログラム実行を再開する。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.193
+    notes: プログラム終了/END到達後、PROモードでの編集後、ERRORによる中断後は無効。
+  - name: COS
+    aliases: []
+    kind: function
+    category: math
+    format: COS(<数値式>)
+    summary: 余弦(cosine)を返す。単位は現在の角度モードに従う。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.194
+    notes: null
+  - name: CSAVE
+    aliases: []
+    kind: command
+    category: file
+    format: null
+    summary: 中間コード表にのみ存在。仕様未確定。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: needs_measurement
+    ocr_suspect: false
+    verified_by: none
+    verifiable_by_measurement: true
+    source: basic_tokens.yaml のみ
+    notes: 底本マニュアルに記載なし(manual.txtを全文検索して確認)。英語版eng.txtでも同様に中間コード表(付録)以外に出現しないことを確認済み(両版一致で「記載なし」を確認、内容そのものは依然未確定)。カセット機能はPC-G850/G850Sのみに存在し、対象機種のG850V/VSには無いことが本プロジェクトの調査で判明している。トークンコードは残存しているが本体には対応する周辺機器(カセットI/F)が無いため、実装対象外に近いと判断しphase:3とした。
+  - name: CUB
+    aliases: []
+    kind: function
+    category: math
+    format: CUB(<数値式>)
+    summary: 数値式の3乗(立方)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.194
+    notes: '原文の「Siehe auch: CUB」は自己参照になっており、CURの誤記の可能性がある。'
+  - name: CUR
+    aliases: []
+    kind: function
+    category: math
+    format: CUR(<数値式>)
+    summary: 数値式の3乗根(立方根)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.195
+    notes: 原文本文は「Der Befehl CUB liefert...」とCUBの説明文をそのまま流用しており、原著の誤記と見られる。
+  - name: DATA
+    aliases: []
+    kind: statement
+    category: var
+    format: DATA <値のリスト>
+    summary: READ文で読み出す数値・文字列定数を列挙する非実行文。
+    params:
+      - name: 値のリスト
+        type: any
+        optional: false
+        range: null
+        notes: 数値・文字列混在可。カンマ区切り。
+    returns: none
+    errors:
+      - リストを読み切った状態でREADするとERRORになる（RESTOREで内部ポインタをリセットするまで解消しない）
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.195
+    notes: プログラム中どこに置いてもよく、READより前に置く必要はない。
+  - name: DEG
+    aliases: []
+    kind: function
+    category: math
+    format: DEG(<数値式>)
+    summary: 60進(hh.mmssrr形式)で表された角度を10進の角度に変換する。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: 形式hh.mmssrr。mm/ssは00-59、rrは00-99。hhの上限は明記されていない。
+    returns: numeric
+    errors: []
+    phase: 1
+    status: partial
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.196 / manual_en p.167
+    notes: '独語「hh : 0 bis ..」、英語「hh : 0 to …」と両版とも同一箇所で上限が「…」のまま途切れている。同じ箇所が独立にOCRされた両版で全く同じ形で欠けていることから、これはOCR誤認ではなく原著自体がhh(度の整数部)に上限を定めていない（mm/ss/rrのみ0-59/0-99と明記され、度数自体は理論上無制限)と判断し、ocr_suspectを解除した。上限自体は依然未確定([partial]のまま)。また『X=DEG
+      50.3000』のように括弧無しで使う実行例は英語版でも同様(関数群全般で"DEG expression"という括弧なしのFormat表記もあり、電卓モードの直接呼び出しでは括弧を付けない用法が正規)。'
+  - name: DEGREE
+    aliases: []
+    kind: command
+    category: system
+    format: DEGREE
+    summary: 角度モードをDEGREE(度)に設定する。SIN/COS/TAN等の引数・戻り値の単位が度になる。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.197
+    notes: ステータス行にDEGが表示される。
+  - name: DELETE
+    aliases: []
+    kind: command
+    category: system
+    format: DELETE [<行番号>][-][<行番号>]
+    summary: 指定した範囲のBASICプログラム行を削除する。単一行・以降全部・範囲・先頭からの4パターンを取る。
+    params:
+      - name: 開始行番号
+        type: line_no
+        optional: true
+        range: null
+        notes: 省略時は先頭行から。
+      - name: 終了行番号
+        type: line_no
+        optional: true
+        range: null
+        notes: 省略時は末尾行まで。'-'単独で範囲指定を表す。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.197 / manual_en p.188
+    notes: 独語版で「Zeilenummer」と「Zeilennummer」の綴りが揺れていた箇所は英語版では単純に「line number」で綴り揺れ自体が存在せず、独語側のみのOCR/組版起因の表記ゆれと確認できた。4パターン(単一行/以降全部/範囲/先頭から)の説明も両版一致。全消去にはNEWを使う。
+  - name: DIM
+    aliases: []
+    kind: statement
+    category: var
+    format: DIM <変数>[$](<index1>[,<index2>])[*<文字列長>][,……]
+    summary: 数値・文字列配列の要素数や文字列長を確保・宣言する。
+    params:
+      - name: index1
+        type: numeric
+        optional: false
+        range: 0-255
+        notes: 要素数はindex1+1。
+      - name: index2
+        type: numeric
+        optional: true
+        range: 0-255
+        notes: 2次元配列の行数。要素数は(index2+1)*(index1+1)。
+      - name: 文字列長
+        type: numeric
+        optional: true
+        range: 最大255
+        notes: 省略時16文字。超過分は切り捨て。
+    returns: none
+    errors:
+      - 未DIMの配列を使うとERROR
+      - 既にDIM済みの配列を再DIMするとERROR
+      - 添字が上限を超えるとERROR
+      - 負の添字は不可
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.198 / manual_en p.189
+    notes: 独語版書式行は角括弧が1つ多く対応が崩れていたが、英語版の書式行「DIM variable[$](index1[,index2])[*string-length][,]…」は括弧の対応が崩れておらず、独語側のみのOCR起因の欠陥と確認できた。要素数の式(index1+1)*(index2+1)、index1/index2の範囲0-255、文字列長の既定16文字・最大255も両版一致。A〜Z/A$〜Z$は@(1)〜@(26)/@$(1)〜@$(26)と等価でDIM不要。再DIM可能にするにはCLEAR/NEW/RUN/ERASEが必要。
+  - name: DMS
+    aliases: []
+    kind: function
+    category: math
+    format: DMS(<数値式>)
+    summary: 10進の角度(度)を60進(hh.mmssrr形式)に変換する。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.199 / manual_en p.168
+    notes: 英語版で全ての数学関数(ACS/ASN/DEG/DMS/EXP/HCS/HSN/HTN等)のFormat行が軒並み「関数名 expression」と括弧無しで書かれており、『X=DMS 50.5』のような括弧無し使用例はこの電卓モード呼び出し規則に沿ったものであり書式の不一致ではないと判明。10進角度→dd°mm'ss.rr"変換、対応キー.→DMS.も両版一致。
+  - name: DMS$
+    aliases: []
+    kind: function
+    category: string
+    format: DMS$(<数値式>)
+    summary: 10進の角度(度)を「hh°mm'ss.rr"」形式の文字列に変換する。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: string
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.200
+    notes: null
+  - name: END
+    aliases: []
+    kind: statement
+    category: control
+    format: END
+    summary: プログラムを終了し、開いているファイル・インターフェースを全て閉じる。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.200
+    notes: END無しでも最終行実行で終了する。
+  - name: EOF
+    aliases: []
+    kind: function
+    category: file
+    format: EOF(<ファイル番号>)
+    summary: 順次ファイルの読み込み時、ファイル終端に達したかを返す。
+    params:
+      - name: ファイル番号
+        type: file_no
+        optional: false
+        range: null
+        notes: OPEN時に指定した番号と一致させる。
+    returns: numeric
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.201
+    notes: 0=未到達、-1=到達。
+  - name: ERASE
+    aliases: []
+    kind: statement
+    category: var
+    format: ERASE <変数>|<配列>[,…]
+    summary: 標準変数以外の単純変数・配列を消去する。
+    params:
+      - name: 変数または配列
+        type: var
+        optional: false
+        range: null
+        notes: 配列は要素単位では消去できず全体のみ。空括弧()で配列であることを示す。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.201
+    notes: 標準変数(A-Z, @(1)-@(26), A$-Z$, @$(1)-@$(26))は消去対象外。
+  - name: EXP
+    aliases: []
+    kind: function
+    category: math
+    format: EXP(<数値式>)
+    summary: eのべき乗(e^x)を返す。範囲外の値は0を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: -227.9559242 〜 +230.2585092
+        notes: 範囲外は関数値0。
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.202 / manual_en p.169
+    notes: 独語版はeの近似値を「2.7181828」と桁が入れ替わった形で記載するが、英語版は「2.718281828…」と正しい値を記載しており、独語側のみのOCR誤認と確認できた。実装は英語版の正しい値(自然対数の底)を使うこと。定義域-227.9559242〜+230.2585092、範囲外は関数値0、EXP(10)=220026.46579の実行例も両版一致。
+  - name: FACT
+    aliases: []
+    kind: function
+    category: math
+    format: FACT(<数値式>)
+    summary: 階乗を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.202
+    notes: null
+  - name: FILES
+    aliases: []
+    kind: command
+    category: file
+    format: FILES
+    summary: RAMディスク(E:)上のファイル一覧(ファイル名・拡張子・サイズ)を表示する。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.202
+    notes: null
+  - name: FIX
+    aliases: []
+    kind: function
+    category: math
+    format: FIX(<数値式>)
+    summary: 小数部を切り捨てて整数部を返す。負数の場合はINTと異なりゼロ方向へ丸める。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.203
+    notes: '例: FIX(-8.4)=-8 (INT(-8.4)=-9)。'
+  - name: FOR .. NEXT
+    aliases: []
+    kind: statement
+    category: control
+    format: 'FOR <変数>=<開始式> TO <終了式> [STEP <増分式>]
+
+      NEXT <変数>'
+    summary: 指定回数だけ繰り返すプログラムループを構成する。
+    params:
+      - name: 変数
+        type: var
+        optional: false
+        range: null
+        notes: ループカウンタとなる数値変数。
+      - name: 開始式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+      - name: 終了式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+      - name: 増分式
+        type: numeric
+        optional: true
+        range: null
+        notes: 省略時1。符号を考慮して加算される。
+    returns: none
+    errors:
+      - FORとNEXTが対応しない(片方欠落・入れ子崩れ)場合ERRORで中断
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.203
+    notes: 入れ子可能。NEXTには対応する変数名が必要。
+  - name: FRE
+    aliases: []
+    kind: function
+    category: system
+    format: FRE
+    summary: 空きメモリ容量をバイト単位で返す。
+    params: []
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.205
+    notes: 関数として変数へ値を代入する用途にも使える。
+  - name: GCURSOR
+    aliases: []
+    kind: statement
+    category: graphics
+    format: GCURSOR (<x>,<y>)
+    summary: グラフィックカーソルを画面上の指定座標へ移動する。
+    params:
+      - name: x
+        type: numeric
+        optional: false
+        range: 表示域0-143、指定可能範囲-32768〜32767
+        notes: null
+      - name: y
+        type: numeric
+        optional: false
+        range: 表示域0-47、指定可能範囲-32768〜32767
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.205
+    notes: 画面は144x48ドットのマトリクスとしてアドレス可能。表示域外の座標も指定できる。
+  - name: GOSUB ... RETURN
+    aliases: []
+    kind: statement
+    category: control
+    format: 'GOSUB <行番号>|"<ラベル>"|*ラベル
+
+      RETURN'
+    summary: サブルーチンを呼び出し、RETURNで呼び出し元に戻る。
+    params:
+      - name: 行番号またはラベル
+        type: line_no
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors:
+      - 入れ子の深さが10段を超えるとERROR 50でプログラム中断
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.205
+    notes: 最大入れ子深さ10段。自己再帰も可能(深さ制限内で)。
+  - name: GOTO
+    aliases: []
+    kind: statement
+    category: control
+    format: GOTO <行番号>|"<ラベル>"|*ラベル
+    summary: 指定した行またはラベルへ無条件分岐する。
+    params:
+      - name: 行番号またはラベル
+        type: line_no
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.206
+    notes: DATA/REM行へジャンプした場合は次の実行可能行から継続。RUNと異なり変数は消去されない。BREAK中断からの再開にも使える。
+  - name: GPRINT
+    aliases: []
+    kind: statement
+    category: graphics
+    format: 'GPRINT <ビットパターン>[;<ビットパターン>…]
+
+      GPRINT <文字列>'
+    summary: 縦8ドット単位のビットパターンを並べてグラフィックを画面に描画する。
+    params:
+      - name: ビットパターン
+        type: numeric
+        optional: false
+        range: 0-255(1バイト)
+        notes: 10進・16進(&接頭辞)、または2桁16進×N文字の文字列(&無し)で指定可。奇数桁の文字列は末尾の半端な桁を無視。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.207
+    notes: パラメータ無しのGPRINTはカーソルを1ドット行下げるのみ。末尾;でカーソル位置保持、,区切りで1ドット分の隙間。
+  - name: GRAD
+    aliases: []
+    kind: command
+    category: system
+    format: GRAD
+    summary: 角度モードをGRAD(新度=グラード)に設定する。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.207
+    notes: ステータス行にGRADが表示される。
+  - name: HCS
+    aliases: []
+    kind: function
+    category: math
+    format: HCS(<数値式>)
+    summary: 双曲線余弦(cosh)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: -227.9559242 <= x <= 230.2585092
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.27, p.208 / manual_en p.169-170, Appendix C p.265
+    notes: '独語版付録C(演算範囲表)ではHSN/HCS/HTNの3行がOCRで入り乱れ対応が崩れていたが、英語版Appendix Cは「HSN
+      x, HCS x, HTN x」の3関数が1つの範囲行 -227.9559242 ≤ x ≤ 230.2585092 を共有する形で明瞭に記載されており、独語版の同じ範囲値([HCS
+      x HSN x -227.9559242 ≤ x ≤ 230,2585092]の行)とも整合するため、3関数共通の定義域と確定できた(ocr_suspect解除、statusをdocumentedへ)。関連: EXP(同じ範囲)。'
+  - name: HDCOPY
+    aliases: []
+    kind: command
+    category: hardware
+    format: null
+    summary: 中間コード表にのみ存在。仕様未確定。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: needs_measurement
+    ocr_suspect: false
+    verified_by: none
+    verifiable_by_measurement: true
+    source: basic_tokens.yaml のみ
+    notes: '底本マニュアルに記載なし(manual.txtを全文検索して確認)。英語版eng.txtでも同様に中間コード表(付録)以外に出現しないことを確認済み(両版一致で「記載なし」を確認、内容そのものは依然未確定)。名前から画面ハードコピー(プリンタ出力)系と推測されるがLCOPY/GPRINTとの関係も含め未確定。周辺機器(プリンタ)依存で実装優先度が低いためphase:3とした(判断根拠: プリンタ接続を要する命令はLCOPY/LPRINT等と同様に周辺機器扱い)。'
+  - name: HEX$
+    aliases: []
+    kind: function
+    category: string
+    format: HEX$(<数値式>)
+    summary: 整数値を16進表記の文字列(&付き)に変換する。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: 整数として扱われる。
+    returns: string
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.208
+    notes: '例: HEX$(64) = "&40"。'
+  - name: HSN
+    aliases: []
+    kind: function
+    category: math
+    format: HSN(<数値式>)
+    summary: 双曲線正弦(sinh)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: -227.9559242 <= x <= 230.2585092
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.27 / manual_en Appendix C p.265
+    notes: '例: HSN 4 = 27.2899172(両版一致)。独語版付録Cの範囲表はHSN/HCS/HTNの3行がOCRで入り乱れていたが、英語版Appendix
+      Cで3関数が同じ範囲行 -227.9559242 ≤ x ≤ 230.2585092 を共有すると明瞭に確認でき、対応関係が確定した(HCSのnotes参照)。'
+  - name: HTN
+    aliases: []
+    kind: function
+    category: math
+    format: HTN(<数値式>)
+    summary: 双曲線正接(tanh)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: -227.9559242 <= x <= 230.2585092
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.27 / manual_en Appendix C p.265
+    notes: '例: HTN 0.9 = 0.71629787(両版一致)。独語版付録Cの範囲表はHSN/HCS/HTNの3行がOCRで入り乱れていたが、英語版Appendix
+      Cで3関数が同じ範囲行 -227.9559242 ≤ x ≤ 230.2585092 を共有すると明瞭に確認でき、対応関係が確定した(HCSのnotes参照)。'
+  - name: IF .. THEN .. ELSE
+    aliases: []
+    kind: statement
+    category: control
+    format: IF <条件> THEN <行番号>|*ラベル|<文> [ELSE <行番号>|*ラベル]
+    summary: 条件の真偽によって分岐する。ELSE省略時は条件不成立で次行へ進む。
+    params:
+      - name: 条件
+        type: expr
+        optional: false
+        range: null
+        notes: =,<>,<,>,<=,>=,AND,OR,NOTを組み合わせた論理式。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.209
+    notes: ELSEに行指定が無い場合、同一行内の(コロン区切りの)以降の文が全て実行される。
+  - name: IF .. THEN .. ELSE .. ENDIF
+    aliases: []
+    kind: statement
+    category: control
+    format: "IF <条件> THEN\n  <文>\n[ELSE\n  <文>]\nENDIF"
+    summary: 複数行にまたがるブロック形式のIF文。THEN/ELSE直後の行が実行され、ENDIFで合流する。
+    params:
+      - name: 条件
+        type: expr
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.210
+    notes: IF/ELSE/ENDIFは行番号の直後に置く必要があり、ラベルの直後には置けない。THEN(またはELSE)と同じ行に文・式・注釈を続けると通常のIF..THEN..ELSEとして扱われる。
+  - name: INKEY$
+    aliases: []
+    kind: function
+    category: io
+    format: INKEY$
+    summary: キーバッファを調べ、入力済み文字が有ればそれを1文字返す。無ければ空文字列を返す。
+    params: []
+    returns: string
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.211
+    notes: null
+  - name: INP
+    aliases: []
+    kind: function
+    category: hardware
+    format: 'INP(<ポート>)
+
+      INP'
+    summary: 指定ポートから1バイト読み込む。引数無しの場合は11ピンインターフェースのXIN/DIN/ACKの状態を返す。
+    params:
+      - name: ポート
+        type: numeric
+        optional: true
+        range: 0-65535 (&0-&FFFF)
+        notes: 省略時はXIN/DIN/ACKビット合成値。
+    returns: numeric
+    errors: []
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.211
+    notes: '例: INP=3 は XIN=Lo, DIN=Hi, ACK=Hi (4*0+2*1+1*1)。'
+  - name: INPUT
+    aliases: []
+    kind: statement
+    category: io
+    format: 'INPUT <変数>[,<変数>…]
+
+      INPUT "<メッセージ>",<変数>[[,"<メッセージ>"],<変数>…]
+
+      INPUT "<メッセージ>";<変数>[,"<メッセージ>";<変数>…]'
+    summary: プログラム実行中にキーボードから値を変数へ代入する。
+    params:
+      - name: メッセージ
+        type: string
+        optional: true
+        range: null
+        notes: 省略時は?のみ表示。;を付けると?表示を抑制。
+      - name: 変数
+        type: var
+        optional: false
+        range: null
+        notes: カンマ区切りで複数指定可。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.212
+    notes: メッセージの後にカンマを置くと、カーソルはメッセージ表示行の1つ上の行頭に移動する。
+  - name: INPUT#
+    aliases: []
+    kind: statement
+    category: file
+    format: INPUT#<ファイル番号>,<変数>[,<変数>…]
+    summary: 順次ファイル(RAMディスクまたはシリアル)からデータを読み込み変数に代入する。
+    params:
+      - name: ファイル番号
+        type: file_no
+        optional: false
+        range: null
+        notes: OPENで指定した番号と一致させる。シリアルは1固定、RAMディスクは2または3。
+      - name: 変数
+        type: var
+        optional: false
+        range: null
+        notes: 配列を指定する場合は疑似添字(*)を付ける(例:A(*))。
+    returns: none
+    errors:
+      - 未オープンのファイルへの読み込みはERROR
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.213
+    notes: 数値変数の区切りはカンマ・空白・LF・CR・CR+LF。文字列変数の区切りはカンマ・CR・LF・CR+LF。データがダブルクォートで始まる場合は次のダブルクォートまでを1変数分とする。
+  - name: INT
+    aliases: []
+    kind: function
+    category: math
+    format: INT(<数値式>)
+    summary: 小数部を切り捨て、引数以下で最大の整数(床関数)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.214
+    notes: '負数は絶対値が大きくなる方向に丸められる(例: INT(-3.3)=-4)。FIXと対比。'
+  - name: KILL
+    aliases: []
+    kind: command
+    category: file
+    format: KILL "<ファイル名>[.BAS]"
+    summary: RAMディスク上のBASICプログラムを削除する。
+    params:
+      - name: ファイル名
+        type: string
+        optional: false
+        range: null
+        notes: 拡張子.BASは省略可。E:等のデバイス名は指定不可。ワイルドカード(*, ?)不可。
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.214
+    notes: null
+  - name: LCOPY
+    aliases: []
+    kind: statement
+    category: system
+    format: LCOPY <開始行>,<終了行>,<コピー先行>
+    summary: BASICプログラムの指定範囲の行を別の行番号位置へコピーする。ジャンプ先アドレスは調整されない。
+    params:
+      - name: 開始行
+        type: line_no
+        optional: false
+        range: null
+        notes: null
+      - name: 終了行
+        type: line_no
+        optional: false
+        range: null
+        notes: null
+      - name: コピー先行
+        type: line_no
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.214
+    notes: RENUMと異なり、コピーされた行内のGOTO/GOSUB等のジャンプ先行番号は自動調整されない点に注意。
+  - name: LEFT$
+    aliases: []
+    kind: function
+    category: string
+    format: LEFT$(<文字列>,<文字数>)
+    summary: 文字列の左側から指定した文字数を取り出す。
+    params:
+      - name: 文字列
+        type: string
+        optional: false
+        range: null
+        notes: null
+      - name: 文字数
+        type: numeric
+        optional: false
+        range: 0 <= n <= 255
+        notes: 小数は四捨五入。文字列長を超える場合は文字列全体を返す。
+    returns: string
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.215
+    notes: null
+  - name: LEN
+    aliases: []
+    kind: function
+    category: string
+    format: LEN(<文字列>)
+    summary: 文字列に含まれる文字数を返す。空白や制御コードも1文字として数える。
+    params:
+      - name: 文字列
+        type: string
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.215
+    notes: null
+  - name: LET
+    aliases: []
+    kind: statement
+    category: var
+    format: '[LET] <変数>=<式>[,<変数>=<式>……]'
+    summary: 変数に値を代入する。LETは省略可能だが、THEN/ELSE直後の代入では省略できない。
+    params:
+      - name: 変数
+        type: var
+        optional: false
+        range: null
+        notes: 数値変数には数値、文字列変数には文字列のみ代入可。
+      - name: 式
+        type: expr
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.216
+    notes: null
+  - name: LFILES
+    aliases: []
+    kind: statement
+    category: file
+    format: LFILES
+    summary: RAMディスク(E:)上のファイル一覧をプリンタへ出力する。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.216
+    notes: 'プリンタ出力が前提のためphase3。関連: FILES（本範囲外）。'
+  - name: LINE
+    aliases: []
+    kind: statement
+    category: graphics
+    format: LINE [(<x1>,<y1>)]-(<x2>,<y2>)[,S|R|X][,<線種>][,B|BF]
+    summary: 2点間に直線を描画する。B/BFを指定すると矩形（枠のみ/塗りつぶし）を描画する。
+    params:
+      - name: x1,y1
+        type: numeric
+        optional: true
+        range: 画面座標は0〜143 / 0〜47。値としては-32768〜32767を許容
+        notes: 省略時はグラフィックカーソルの現在位置を使う。
+      - name: x2,y2
+        type: numeric
+        optional: false
+        range: 画面座標は0〜143 / 0〜47。値としては-32768〜32767を許容
+        notes: null
+      - name: S|R|X
+        type: any
+        optional: true
+        range: null
+        notes: S:セット(標準) R:リセット X:反転
+      - name: 線種
+        type: numeric
+        optional: true
+        range: 0 <= n <= 65535 (&0-&FFFF)
+        notes: 線のビットパターン。
+      - name: B|BF
+        type: any
+        optional: true
+        range: null
+        notes: B:矩形の枠のみ BF:塗りつぶし矩形。指定時は2点が対角座標になる。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.217
+    notes: '関連: CIRCLE'
+  - name: LIST
+    aliases: []
+    kind: command
+    category: system
+    format: LIST [<行番号>|"<label>"]
+    summary: プログラムをディスプレイに一覧表示する。PROモードでのみ受理され、パスワード保護中は使用できない。
+    params:
+      - name: 行番号|label
+        type: line_no
+        optional: true
+        range: null
+        notes: 存在しない行番号ならその次に大きい行番号から表示。最大行番号を超える、またはラベルが見つからない場合はERROR。
+    returns: none
+    errors:
+      - 指定行/ラベルが見つからない場合はERRORコード（番号は本文に記載なし）
+    phase: 1
+    status: partial
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.218 / manual_en p.210
+    notes: 'ERRORコードの具体的な番号は両版とも記載なし(英語版でも確定せず)。「LISTコマンドはPROモードでのみ受理される」という点は両版で一致して明記されており追記した。関連:
+      LLIST'
+  - name: LLIST
+    aliases: []
+    kind: command
+    category: file
+    format: LLIST [<行番号>|"<label>"][-[<行番号>|"<label>"]]
+    summary: プログラムをプリンタへ出力する。範囲指定（開始のみ・終了のみ・区間）が可能。
+    params:
+      - name: 行番号|label
+        type: line_no
+        optional: true
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.219
+    notes: プリンタ出力のためphase3。
+  - name: LN
+    aliases: []
+    kind: function
+    category: math
+    format: LN(<数値>)
+    summary: 自然対数（底e）を返す。EXPの逆関数。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: '>= 1E-99'
+        notes: null
+    returns: numeric
+    errors:
+      - 引数が1E-99未満のときERROR 39
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.220
+    notes: null
+  - name: LNINPUT#
+    aliases: []
+    kind: statement
+    category: file
+    format: LNINPUT#<ファイル番号>,<文字列変数>[,<文字列変数>……]
+    summary: RAMディスクまたはシリアルインタフェースからCR+LF区切りでレコードを読み込む。
+    params:
+      - name: ファイル番号
+        type: file_no
+        optional: false
+        range: null
+        notes: シリアルは1、RAMディスクは2か3。
+      - name: 文字列変数
+        type: var
+        optional: false
+        range: null
+        notes: 配列を指定する場合はA(*)のように疑似インデックスを付ける。
+    returns: none
+    errors:
+      - 未オープンのファイルを読むとERRORコード
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.219
+    notes: null
+  - name: LOAD
+    aliases: []
+    kind: command
+    category: file
+    format: LOAD "<ファイル名>[.BAS]"
+    summary: RAMディスク上のBASICファイルを本体メモリへ読み込む。実行するとそれまで開いていたファイルは全て閉じられる。
+    params:
+      - name: ファイル名
+        type: string
+        optional: false
+        range: null
+        notes: 拡張子.BASは省略可。E:等のデバイス名は指定不可。
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.220
+    notes: '関連: RUN, SAVE'
+  - name: LOCATE
+    aliases: []
+    kind: statement
+    category: io
+    format: LOCATE <桁>[,<行>]
+    summary: テキストカーソルの表示位置を指定する。省略した軸は現在位置を維持する。
+    params:
+      - name: 桁
+        type: numeric
+        optional: true
+        range: 0 <= x <= 23
+        notes: null
+      - name: 行
+        type: numeric
+        optional: true
+        range: 0 <= y <= 5
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.221
+    notes: null
+  - name: LOF
+    aliases: []
+    kind: function
+    category: file
+    format: LOF(<ファイル番号>)
+    summary: OPENで開いたRAMディスクファイルのバイト数を返す。
+    params:
+      - name: ファイル番号
+        type: file_no
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.221
+    notes: null
+  - name: LOG
+    aliases: []
+    kind: function
+    category: math
+    format: LOG(<数値>)
+    summary: 常用対数（底10）を返す。任意の底Bへの変換はLOG(X)/LOG(B)で行う。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.222
+    notes: '関連: LN'
+  - name: LPRINT
+    aliases: []
+    kind: statement
+    category: file
+    format: LPRINT [USING "<format>"] [<式>|<文字列>[,|;[<式>|<文字列>……]][;]]
+    summary: PRINTと同じ書式でプリンタへ出力する。引数なしでは1行分の紙送りを行う。
+    params:
+      - name: 式|文字列
+        type: any
+        optional: true
+        range: null
+        notes: カンマ区切りは次のゾーン(桁13または0)へ、セミコロン区切りは連結出力。末尾セミコロンで改行を抑制。
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.222
+    notes: '関連: PRINT'
+  - name: MDF
+    aliases: []
+    kind: function
+    category: math
+    format: MDF
+    summary: 内部的に保持している全桁の値を、現在の表示桁数(DIGIT指定)に丸め込んで内部値と表示値を一致させる。
+    params: []
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.20, p.28 / manual_en p.17
+    notes: '独語版の用例はscreenshot画像でテキストに数値例が含まれなかったが、英語版は同じ節を画像でなく通常のテキストとして収録しており数値例を読み取れた。DIGIT
+      3設定時に55.4/9=6.155555556(表示は6.156)の状態で.MDF.キーを押すと内部値も6.156に置き換わり、続けて*9すると55.404になる(MDF未使用なら55.4)ことを確認。これは電卓モードのキー操作(.2ndF.
+      .MDF.)であり数値式を引数に取らず、直前の計算結果そのものを丸め込んで置き換える動作と確定できたため、params空のままstatusをdocumentedへ引き上げた。BASICプログラム中でのMDF文としての動作(引数の有無を含む)は本文に記載が無く別途実測が必要。'
+  - name: MID$
+    aliases: []
+    kind: function
+    category: string
+    format: MID$(<文字列>,<位置>,<文字数>)
+    summary: 文字列の指定位置から指定文字数を取り出す。
+    params:
+      - name: 位置
+        type: numeric
+        optional: false
+        range: 1 <= p <= 255
+        notes: 範囲外はERROR。文字列長を超える位置を指定すると空文字列を返す。
+      - name: 文字数
+        type: numeric
+        optional: false
+        range: 0 <= n <= 255
+        notes: 小数点以下切り捨て。
+    returns: string
+    errors:
+      - 位置が1〜255の範囲外のときERRORコード（番号未記載）
+    phase: 1
+    status: partial
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.223 / manual_en p.215
+    notes: '位置1-255・文字数0-255(小数切り捨て)・範囲外ERROR・文字列長超過時は空文字列、という記述は両版完全一致。ただしERRORコードの具体的な番号は両版とも記載が無く、英語版でも確定せず。関連:
+      LEFT$, RIGHT$'
+  - name: MOD
+    aliases: []
+    kind: operator
+    category: math
+    format: <数値式1> MOD <数値式2>
+    summary: 整数除算(modulo除算)の剰余を返す算術演算子。電卓モード(3.2節)の数学演算の一覧表に「Modulo-Division」として掲載され、キー入力は MOD。
+    params:
+      - name: 数値式1
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+      - name: 数値式2
+        type: numeric
+        optional: false
+        range: null
+        notes: 小数・負数を与えた場合は最も近い整数に四捨五入されてから剰余演算が行われる(下記notes参照)。
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.16 (3章 数学演算子の表) / manual_en p.15
+    notes: '独語版には計算例が無かったが、英語版の同じ節(3章 Manual Calculations、電卓モードの算術演算子一覧)には整数除算(¥)とMODの対比例が並記されていた。例
+      51 MOD 5=1、51 MOD -5.7=3(-5.7は-6に丸められ51÷-6=-8…3)、87.57 MOD 5.4=3(87.57→88、5.4→5に丸められ88÷5=17…3)。両オペランドを四捨五入で最も近い整数に丸めたうえで商を0方向へ切り捨てる整数除算を行い、余りを返す典型的なBASICのMOD挙動と一致することを確認できた。ビット演算ではなく算術演算子であることも変わらず(5.11節のAND/OR/XOR/NOTとは別表)。DMS形式(30º36´のような度分表記)のオペランドも例に含まれるが、その場合の丸め規則の詳細(角度→整数変換の基準)までは未確認。'
+  - name: MON
+    aliases: []
+    kind: command
+    category: hardware
+    format: MON
+    summary: 機械語モニタへ切り替える。
+    params: []
+    returns: none
+    errors: []
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.223
+    notes: 実機メモリ配置・Z80モニタに依存するためphase2。
+  - name: NCR
+    aliases: []
+    kind: function
+    category: math
+    format: NCR(<n>,<r>)
+    summary: nとrの組み合わせ数（nCr）を返す。
+    params:
+      - name: n
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+      - name: r
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.223
+    notes: '関連: NPR'
+  - name: NEW
+    aliases: []
+    kind: command
+    category: system
+    format: NEW
+    summary: メモリ上のBASICプログラムと全変数を消去する。パスワード保護中のプログラムは消去できない。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.224
+    notes: '関連: DELETE, CLEAR'
+  - name: NOT
+    aliases: []
+    kind: operator
+    category: math
+    format: NOT <数値式>
+    summary: 論理否定を表す単項演算子。数値式を-32768〜+32767の16bit2の補数表現に変換し、ビットごとに反転してから10進に戻す全ビット反転演算(NOT X = -(X+1))。AND/OR/XORと同じ節でビット単位の真理値表として明記される。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: -32768 <= x <= 32767
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.42 (5.11 論理式), p.209 (IF..THEN..ELSE) / manual_en p.40-41 (5.4.4 Logical
+      Expressions)
+    notes: 英語版5.4.4節に、独語版には無かったAND/OR/XOR/NOTのビット単位真理値表が実際の0/1の値付きで収録されており、NOTの列は「X=1→NOT
+      X=0、X=0→NOT X=1」という単純な1ビット反転であることが確定した。AND/OR/XORと同じ16bit2の補数変換規則がNOTにも適用されるため、全体としてはNOT
+      X = -(X+1)という一般的なBASICのビット単位NOTの定義と一致する(単純な論理否定0→-1ではない)。
+  - name: NPR
+    aliases: []
+    kind: function
+    category: math
+    format: NPR(<n>,<r>)
+    summary: nとrの順列数（nPr）を返す。
+    params:
+      - name: n
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+      - name: r
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.224
+    notes: '関連: NCR'
+  - name: ON..GOSUB/GOTO
+    aliases:
+      - ON..GOSUB
+      - ON..GOTO
+    kind: statement
+    category: control
+    format: ON <数値式> GOSUB <行番号>|"<label>"[,<行番号>|"<label>"……]\nON <数値式> GOTO <行番号>|"<label>"[,<行番号>|"<label>"……]
+    summary: 数値式の値に応じてリストのn番目の行へ分岐する。値がリスト範囲外（1未満または要素数超）なら次の行へ進む。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: 小数点以下切り捨て。
+      - name: 行番号|label
+        type: line_no
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.224
+    notes: '関連: GOSUB, GOTO'
+  - name: OPEN
+    aliases: []
+    kind: statement
+    category: file
+    format: 'OPEN "E:<ファイル名>" FOR INPUT|OUTPUT|APPEND AS #<ファイル番号>\nOPEN "COM:"|"COM1:"|"LPRT:"|"PIO:"'
+    summary: RAMディスク上のファイル、またはシリアル/PIO/プリンタ等のデバイスをオープンする。
+    params:
+      - name: ファイル名
+        type: string
+        optional: false
+        range: null
+        notes: 拡張子込みのフルネーム。OPENではファイルを新規作成できない（事前にTEXTモードで作成が必要）。
+      - name: ファイル番号
+        type: file_no
+        optional: false
+        range: 2 または 3
+        notes: 同時に開けるRAMディスクファイルは最大2個。
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.225
+    notes: COM:/COM1:はファイル番号#1固定。PIO:はPIOSET/PIOGET/PIOPUTと併用。
+  - name: OR
+    aliases: []
+    kind: operator
+    category: math
+    format: <数値式1> OR <数値式2>
+    summary: 2つの数値をそれぞれ-32768〜32767の16bit2の補数表現に変換し、対応するビットごとの論理和(OR)を取る。比較式(真=-1/偽=0)同士に使うとIF文の論理OR条件としても機能する。
+    params:
+      - name: 数値式1
+        type: numeric
+        optional: false
+        range: -32768 <= x <= 32767
+        notes: null
+      - name: 数値式2
+        type: numeric
+        optional: false
+        range: -32768 <= x <= 32767
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.42 (5.11 論理式)
+    notes: AND と同じ節に「2つの数値を16bit2の補数に変換し、対応するビットのペアごとに論理演算を評価する」と明記。真理値表は図版でOCR未取得。詳細は AND の notes を参照。
+  - name: OUT
+    aliases: []
+    kind: statement
+    category: hardware
+    format: 'OUT <ポートアドレス>,<バイト>[,<バイト>……]
+
+      OUT <パターン>'
+    summary: Z80互換ポートへバイトを出力する。第2形式は11ピンインタフェースのBUSY/DOUT/XOUTビットを直接設定する（要事前OPEN）。
+    params:
+      - name: ポートアドレス
+        type: numeric
+        optional: false
+        range: 0 <= addr <= 65535 (&0-&FFFF)
+        notes: null
+      - name: バイト
+        type: numeric
+        optional: false
+        range: 0 <= b <= 255
+        notes: 複数指定すると連続するポートへ順に出力される。
+    returns: none
+    errors: []
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.226
+    notes: '関連: INP'
+  - name: PAINT
+    aliases: []
+    kind: statement
+    category: graphics
+    format: PAINT (<x>,<y>),<パターン>
+    summary: 指定座標を起点に、周囲の画素で囲まれた領域を塗りつぶす。
+    params:
+      - name: x,y
+        type: numeric
+        optional: false
+        range: 'x: 0〜143, y: 0〜47'
+        notes: null
+      - name: パターン
+        type: numeric
+        optional: false
+        range: 0 <= p <= 6
+        notes: 0:塗りつぶし無し(標準) 1:横線 2:縦線 3:右上がり斜線 4:右下がり斜線 5:3+4 6:全面塗りつぶし
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.227
+    notes: null
+  - name: PASS
+    aliases: []
+    kind: command
+    category: system
+    format: PASS "<パスワード>"
+    summary: プログラムにパスワードを設定し、LIST/SAVE/LOAD/NEW等の操作とPROモードへの切り替えを禁止する。同じパスワードを再入力すると解除される。
+    params:
+      - name: パスワード
+        type: string
+        optional: false
+        range: 最大8文字
+        notes: 二重引用符は使用不可。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.228
+    notes: '対象コマンド: AUTO, RENUM, LCOPY, LIST, LLIST, BSAVE, SAVE, BLOAD, LOAD, NEW, DELETE。関連: LOAD, BLOAD'
+  - name: PEEK
+    aliases: []
+    kind: function
+    category: hardware
+    format: PEEK(<アドレス>)
+    summary: 指定したメモリアドレスの内容（1バイト）を返す。
+    params:
+      - name: アドレス
+        type: numeric
+        optional: false
+        range: 0 <= addr <= 65535 (&0-&FFFF)
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.228
+    notes: '関連: POKE, CALL'
+  - name: PI
+    aliases: []
+    kind: function
+    category: math
+    format: PI
+    summary: 円周率πの値を返す。
+    params: []
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.229
+    notes: null
+  - name: PIOGET
+    aliases: []
+    kind: function
+    category: hardware
+    format: PIOGET
+    summary: PIOポートから1バイト読み込む。事前にOPEN "PIO:"とPIOSETの実行が必要。
+    params: []
+    returns: numeric
+    errors: []
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.229
+    notes: null
+  - name: PIOPUT
+    aliases: []
+    kind: statement
+    category: hardware
+    format: PIOPUT <バイト>
+    summary: PIOポートへ1バイト書き込む。事前にOPEN "PIO:"とPIOSETの実行が必要。
+    params:
+      - name: バイト
+        type: numeric
+        optional: false
+        range: 0 <= b <= 255
+        notes: null
+    returns: none
+    errors: []
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.229
+    notes: null
+  - name: PIOSET
+    aliases: []
+    kind: statement
+    category: hardware
+    format: PIOSET <バイト>
+    summary: PIOポートの信号入出力方向をビット単位で設定する。
+    params:
+      - name: バイト
+        type: numeric
+        optional: false
+        range: 0 <= b <= 255
+        notes: bit7:EX2 bit6:EX1 bit5:ACK bit4:Din bit3:Xout bit2:Xin bit1:Dout bit0:Busy
+    returns: none
+    errors: []
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.229
+    notes: null
+  - name: POINT
+    aliases: []
+    kind: function
+    category: graphics
+    format: POINT (<x>,<y>)
+    summary: 指定した表示ドットの点灯状態を返す（点灯:1、消灯:0）。実在しない座標を指定した場合は常に0を返す。
+    params:
+      - name: x,y
+        type: numeric
+        optional: false
+        range: 実表示域は x:0〜143, y:0〜47。指定自体は-32768〜32767まで許容
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.230
+    notes: null
+  - name: POKE
+    aliases: []
+    kind: statement
+    category: hardware
+    format: POKE <アドレス>,<バイト>[,<バイト>……]
+    summary: 指定アドレスを起点に連続してバイト列を書き込む。
+    params:
+      - name: アドレス
+        type: numeric
+        optional: false
+        range: 0 <= addr <= 65535 (&0-&FFFF)
+        notes: null
+      - name: バイト
+        type: numeric
+        optional: false
+        range: 0 <= b <= 255
+        notes: 複数指定は連続アドレスへ順に書き込む。
+    returns: none
+    errors:
+      - 書き込み先の空き容量が足りない場合ERRORコード
+    phase: 2
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.230
+    notes: null
+  - name: POL
+    aliases: []
+    kind: function
+    category: math
+    format: POL(<x>,<y>)
+    summary: 直交座標(x,y)を極座標に変換する。関数値として距離(r)を返し、角度(θ)は予約変数Zへ格納する(距離も予約変数Yへ格納される)。角度単位は現在の角度モード(DEG/RAD/GRAD)に従う。
+    params:
+      - name: x
+        type: numeric
+        optional: false
+        range: null
+        notes: 第1引数はY軸からの距離、すなわちx座標(実行例POL(8,6)でx=8,y=6→r=10,θ≈36.87°より確認)。
+      - name: y
+        type: numeric
+        optional: false
+        range: null
+        notes: 第2引数はX軸からの距離、すなわちy座標。
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.231 / manual_en p.172
+    notes: '独語版は計算例が無くX/Yどちらの引数がx/y座標に対応するか曖昧だったが、英語版に実行例 POL(8,6)→10(r=10)、Z=36.86989765(θ≈36.9°)が収録されており、8²+6²の平方根=10、atan(6/8)≈36.87°と一致することから第1引数=x、第2引数=yと確定できた。戻り値(関数値)はr、Zはθ。Yにもrが格納される(POL(10,10)の例でX=POL(10,10)の結果14.14213562とPRINT
+      Zの45が両方出力される)。関連: REC'
+  - name: PRESET
+    aliases: []
+    kind: statement
+    category: graphics
+    format: PRESET (<x>,<y>)
+    summary: 指定座標の表示ドットを消灯する。
+    params:
+      - name: x,y
+        type: numeric
+        optional: false
+        range: 実表示域は x:0〜143, y:0〜47。指定自体は-32768〜32767まで許容
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.231
+    notes: '関連: PSET, LINE'
+  - name: PRINT
+    aliases: []
+    kind: statement
+    category: io
+    format: PRINT [USING "<format>"] [<式>|<文字列>[,|;[<式>|<文字列>……]][;]]
+    summary: 画面にデータを出力する。カンマ区切りは12桁ゾーン単位（数値は右寄せ、文字列は左寄せ）、セミコロン区切りは連結出力。USING指定で書式付き出力ができる。
+    params:
+      - name: 式|文字列
+        type: any
+        optional: true
+        range: null
+        notes: 引数なしの場合は空行を出力する。末尾セミコロンで改行を抑制。
+      - name: format
+        type: string
+        optional: true
+        range: null
+        notes: '#=数値の桁, .=小数点区切り, ,=3桁カンマ区切り, ^=指数表記, &=文字列の桁。#/&の最大個数は書式(1)(2)(3)(4)(6)で11、書式(5)で14。'
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.232
+    notes: null
+  - name: PRINT#
+    aliases: []
+    kind: statement
+    category: file
+    format: PRINT#<ファイル番号>,<変数>[,|;<変数>……][,|;]
+    summary: ファイルまたはシリアルインタフェースへ順次データを書き込む。カンマ区切りは20桁ゾーン単位、セミコロン区切りは連結。
+    params:
+      - name: ファイル番号
+        type: file_no
+        optional: false
+        range: 1(シリアル), 2, 3
+        notes: null
+      - name: 変数
+        type: var
+        optional: false
+        range: null
+        notes: 配列は個別要素指定不可。A(*)のように配列全体を指定する。
+    returns: none
+    errors:
+      - 未オープンのファイルへの書き込みはERRORコード
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.234
+    notes: null
+  - name: PRINT->LPRINT
+    aliases:
+      - PRINT=LPRINT
+      - PRINT=PRINT
+    kind: command
+    category: io
+    format: 'PRINT=LPRINT
+
+      PRINT=PRINT'
+    summary: PRINT命令の出力先をプリンタ(LPRINT)または画面(PRINT)に切り替える。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.234 / manual_en p.222
+    notes: 見出しが"PRINT->LPRINT"(目次由来の項目名)で本文の書式が"PRINT=LPRINT"/"PRINT=PRINT"という=表記なのは独語版・英語版で共通しており、OCR誤認ではなく目次見出しと実際のコマンド構文が意図的に異なる(見出しは切替の向きを示す表現、構文は=を使う)ことが確認できた。出力先がプリンタになるためphase3扱い。
+  - name: PSET
+    aliases: []
+    kind: statement
+    category: graphics
+    format: PSET (<x>,<y>)[,X]
+    summary: 指定座標の表示ドットを点灯する。Xオプション指定時は現在の点灯状態を反転する。
+    params:
+      - name: x,y
+        type: numeric
+        optional: false
+        range: 実表示域は x:0〜143, y:0〜47。指定自体は-32768〜32767まで許容
+        notes: null
+      - name: X
+        type: any
+        optional: true
+        range: null
+        notes: 反転モード。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.234
+    notes: '関連: PRESET, LINE, CIRCLE'
+  - name: RADIAN
+    aliases: []
+    kind: command
+    category: system
+    format: RADIAN
+    summary: 角度モードをラジアン(弧度法)に切り替える。SIN/COS/TANの引数、ASN/ACS/ATNの戻り値がこの単位になる。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.235
+    notes: '関連: DEGREE, GRAD'
+  - name: RANDOMIZE
+    aliases: []
+    kind: statement
+    category: math
+    format: RANDOMIZE
+    summary: RNDが生成する乱数系列の種を変える。既定の種は電源投入のたびに同一で、RANDOMIZE未使用時はRNDの系列が毎回再現される。RANDOMIZEを実行すると種が(何らかの方法で)新しい値に変わる。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: partial
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.236 / manual_en p.224
+    notes: '【両版で食い違う可能性、要実測】英語版は「既定の種は電源投入のたびに同一(そのためRND使用時もプログラムの挙動が再現可能でデバッグに便利)であり、RANDOMIZEを実行すると種を新しいランダムな値にリセットする」と明快に説明する(独語版にはこの説明が無い)。ところが独語版の実行例では、プログラム冒頭にRANDOMIZEを置いたうえで電源をOFF→ONしてRUNし直しても、5個の乱数列(2,1,10,8,10)が寸分違わず再現されており、英語版の「新しいランダムな値になる」という説明と食い違うように見える。英語版は数値例そのものを収録していないため、この矛盾を裏付ける独自データが無い。デモの手順自体が毎回同じキー操作タイミングだった可能性(=種の実体が経過時間やキー入力タイミングに依存する擬似乱数で、同一手順なら同一結果になる)も否定できず、種の決定要因(内部カウンタ・実時間・ユーザー操作タイミング等)は両版から確定できない。関連:
+      RND'
+  - name: RCP
+    aliases: []
+    kind: function
+    category: math
+    format: RCP(<数値>)
+    summary: 数値の逆数(1/x)を返す。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.236
+    notes: null
+  - name: READ
+    aliases: []
+    kind: statement
+    category: var
+    format: READ <変数>[,<変数>……]
+    summary: DATA文の値を先頭から順に読み取って変数へ代入する。読み取る値が尽きた状態で実行するとERRORになる。
+    params:
+      - name: 変数
+        type: var
+        optional: false
+        range: null
+        notes: 対応するDATA値と型が一致していなければならない。
+    returns: none
+    errors:
+      - DATA値を読み尽くした状態でREADするとERRORコード
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.237
+    notes: '関連: DIM, RESTORE'
+  - name: REC
+    aliases: []
+    kind: function
+    category: math
+    format: REC(<距離>,<角度>)
+    summary: 極座標(距離r,角度θ)を直交座標に変換する。関数値としてx成分を返す。角度単位は現在の角度モードに従う。予約変数Y・Zへの格納先については本文の説明と実行例が食い違っており未確定(下記notes参照)。
+    params:
+      - name: 距離
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+      - name: 角度
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: partial
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.237 / manual_en p.173
+    notes: '【両版で食い違い、要実測】本文(独語・英語とも同内容)は「変換されたx成分・y成分の値はそれぞれ"x軸からの距離"・"y軸からの距離"として予約変数Y・Zに割り当てられる」と説明しており、これを字義通り読めば
+      Y=x軸からの距離(=y座標)、Z=y軸からの距離(=x座標)となるはずである。ところが英語版の実行例 REC(12,30)→10.39230485 に編集者注記「(x
+      ≈ 10.4)」が付き、続くPRINT Zの結果6に注記「(y = 6)」が付いている(12*cos30°≈10.39=x、12*sin30°=6=y と機械的には整合する)。この関数値・Zへの注記をそのまま受け取ると「関数値(およびおそらくY)=x座標、Z=y座標」であり、本文の文言(Y=x軸からの距離=y座標のはず)と正反対になる。独語版には数値例の出力自体が無くこの矛盾を裏付ける材料が無いため、本文の文言と英語版注記付き実行例のどちらが正しいか、あるいは注記自体が編者の誤読かを判定できない。POLとの対称性(POLはY=r,Z=θで本文と実行例が一致)から見てもRECだけ食い違うのは不自然であり、実機でのY/Zの値を実測して確定する必要がある。関連:
+      POL'
+  - name: REM
+    aliases:
+      - ''''
+    kind: statement
+    category: system
+    format: 'REM <コメント>
+
+      '' <コメント>'
+    summary: プログラムにコメントを記述する。アポストロフィ(')で代用できる。行内ではそれ以降すべてがコメント扱いになる。
+    params:
+      - name: コメント
+        type: any
+        optional: true
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.238
+    notes: REMは直前にコロン(:)を置いて他文に続けられるが、'の前にコロンを置くとコロン自体が区切りとして働いてしまう。
+  - name: RENUM
+    aliases: []
+    kind: command
+    category: system
+    format: RENUM [<旧行番号>[,<新行番号>][,<増分>]]
+    summary: プログラムの行番号を振り直す。GOTO/GOSUB等の参照先も自動的に修正される。
+    params:
+      - name: 旧行番号
+        type: line_no
+        optional: true
+        range: null
+        notes: 振り直しを開始する行。
+      - name: 新行番号
+        type: line_no
+        optional: true
+        range: null
+        notes: 最初の新しい行番号。
+      - name: 増分
+        type: numeric
+        optional: true
+        range: null
+        notes: 省略時は10刻み。
+    returns: none
+    errors:
+      - 存在しない行番号を参照している場合 "Undefined in <行番号>" を表示し振り直しを中止する
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.238
+    notes: null
+  - name: REPEAT..UNTIL
+    aliases: []
+    kind: statement
+    category: control
+    format: 'REPEAT
+
+      <文>
+
+      UNTIL <条件>'
+    summary: 条件が真になるまで文を繰り返す後判定ループ。REPEATとUNTILは必ず対で使う。
+    params:
+      - name: 条件
+        type: expr
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.239
+    notes: ループ内でCLEAR/DIM/ERASEは使用不可。入れ子は内側ループが外側ループに完全に収まる必要がある。
+  - name: RESTORE
+    aliases: []
+    kind: statement
+    category: var
+    format: RESTORE [<行番号>|"<label>"]
+    summary: DATA文の読み取り位置（内部ポインタ）を先頭または指定行に戻す。
+    params:
+      - name: 行番号|label
+        type: line_no
+        optional: true
+        range: null
+        notes: 指定行にDATAが無ければ、以降で最初に見つかるDATA行の先頭に設定される。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.239
+    notes: '関連: DIM, READ'
+  - name: RIGHT$
+    aliases: []
+    kind: function
+    category: string
+    format: RIGHT$(<文字列>,<文字数>)
+    summary: 文字列の右側から指定した文字数を取り出す。
+    params:
+      - name: 文字列
+        type: string
+        optional: false
+        range: null
+        notes: null
+      - name: 文字数
+        type: numeric
+        optional: false
+        range: 0 <= n <= 255
+        notes: 小数は四捨五入。文字列長を超える場合は文字列全体を返す。
+    returns: string
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.241
+    notes: '関連: MID$'
+  - name: RND
+    aliases: []
+    kind: function
+    category: math
+    format: RND(<数値>)
+    summary: 引数の値によって挙動が変わる乱数を返す。負なら常に同じ値、0〜1未満なら小数の乱数、1超なら1〜引数の整数乱数を返す。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: null
+        notes: '<0: 直前と同じ値を返す。0<x<1: 0以上1未満の小数(最大10桁)。x>1: 1〜xの整数。'
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.241
+    notes: '関連: RANDOMIZE'
+  - name: RUN
+    aliases: []
+    kind: command
+    category: system
+    format: RUN [<行番号>|"<label>"]
+    summary: メモリ上のプログラムを実行する。実行前に変数とDATAポインタを初期化する。
+    params:
+      - name: 行番号|label
+        type: line_no
+        optional: true
+        range: null
+        notes: 省略時は最小の行番号から開始。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.242
+    notes: 'ダイレクトモードのコマンドだがプログラム中にも書ける。関連: END, STOP'
+  - name: SAVE
+    aliases: []
+    kind: command
+    category: file
+    format: SAVE "<ファイル名>[.BAS]"
+    summary: メモリ上のプログラムをRAMディスクへ保存する。同名ファイルがあれば上書きされる。拡張子省略時は.BASが付く。
+    params:
+      - name: ファイル名
+        type: string
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 3
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.243
+    notes: '関連: LOAD, KILL'
+  - name: SGN
+    aliases: []
+    kind: function
+    category: math
+    format: SGN(<数値>)
+    summary: 引数の符号を返す(-1、0、1のいずれか)。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.243
+    notes: null
+  - name: SIN
+    aliases: []
+    kind: function
+    category: math
+    format: SIN(<数値>)
+    summary: 角度の正弦を返す。角度単位はDEGREE/RADIAN/GRADの設定に従う。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.244
+    notes: null
+  - name: SPINP
+    aliases: []
+    kind: command
+    category: file
+    format: null
+    summary: 中間コード表にのみ存在。仕様未確定。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: needs_measurement
+    ocr_suspect: false
+    verified_by: none
+    verifiable_by_measurement: true
+    source: basic_tokens.yaml のみ
+    notes: 底本マニュアルに記載なし(manual.txtを全文検索して確認)。英語版eng.txtでも同様に中間コード表(付録)以外に出現しないことを確認済み(両版一致で「記載なし」を確認、内容そのものは依然未確定)。名前からシリアル(RS-232C風/COM:)入力系のI/O命令と推測されるがOPEN文のCOM:デバイスとの関係含め未確定。周辺機器依存でシーンへの影響も小さいためphase:3とした。
+  - name: SPOUT
+    aliases: []
+    kind: command
+    category: file
+    format: null
+    summary: 中間コード表にのみ存在。仕様未確定。
+    params: []
+    returns: none
+    errors: []
+    phase: 3
+    status: needs_measurement
+    ocr_suspect: false
+    verified_by: none
+    verifiable_by_measurement: true
+    source: basic_tokens.yaml のみ
+    notes: 底本マニュアルに記載なし(manual.txtを全文検索して確認)。英語版eng.txtでも同様に中間コード表(付録)以外に出現しないことを確認済み(両版一致で「記載なし」を確認、内容そのものは依然未確定)。名前からシリアル出力系のI/O命令と推測されるがOPEN文のCOM:デバイスとの関係含め未確定。周辺機器依存でシーンへの影響も小さいためphase:3とした。
+  - name: SQR
+    aliases: []
+    kind: function
+    category: math
+    format: SQR(<数値>)
+    summary: 正の平方根を返す。負の引数はERRORになる。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: '>= 0'
+        notes: null
+    returns: numeric
+    errors:
+      - 負の引数を指定するとERRORコード
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.244
+    notes: null
+  - name: SQU
+    aliases: []
+    kind: function
+    category: math
+    format: SQU(<数値式>)
+    summary: 数値式の2乗(x^2)を返す。
+    params:
+      - name: 数値式
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.245
+    notes: 実行例 SQU 4 → 16 により2乗関数であることを確認。SQR(平方根)とは別の関数。
+  - name: STOP
+    aliases: []
+    kind: statement
+    category: control
+    format: STOP
+    summary: プログラムの実行を一時中断し"BREAK IN <行番号>"を表示する。ENDと異なり開いているファイルは閉じない。CONTで再開できる。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.245
+    notes: null
+  - name: STR$
+    aliases: []
+    kind: function
+    category: string
+    format: STR$(<数値>)
+    summary: 数値を文字列に変換する。VALの逆関数。値が大きく10桁で表せない場合は浮動小数点表記の文字列になる。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: string
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.246
+    notes: null
+  - name: SWITCH..CASE..DEFAULT..ENDSWITCH
+    aliases: []
+    kind: statement
+    category: control
+    format: "SWITCH <変数>\nCASE <数値並び>|<文字並び>\n  <文>\n[DEFAULT\n  <文>]\nENDSWITCH"
+    summary: 変数の値に応じてCASE節を実行する多分岐構造。一致するCASEが無ければDEFAULT、それも無ければENDSWITCH直後へ進む。
+    params:
+      - name: 変数
+        type: var
+        optional: false
+        range: null
+        notes: null
+      - name: 数値並び|文字並び
+        type: any
+        optional: false
+        range: null
+        notes: 同じ値が複数のCASEに現れる場合、SWITCHに近い方のCASEが優先される。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.246
+    notes: SWITCH文の入れ子は不可。CASE/DEFAULT/ENDSWITCHは行番号直後に置く必要があり、ラベル直後には置けない。
+  - name: TAN
+    aliases: []
+    kind: function
+    category: math
+    format: TAN(<数値>)
+    summary: 角度の正接を返す。角度単位はDEGREE/RADIAN/GRADの設定に従う。極（90度等）ではERRORになる。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors:
+      - 定義域外（極）でERROR 37
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.247
+    notes: null
+  - name: TEN
+    aliases: []
+    kind: function
+    category: math
+    format: TEN(<数値>)
+    summary: 10を底とする逆対数（10の引数乗）を返す。
+    params:
+      - name: 数値
+        type: numeric
+        optional: false
+        range: null
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.248
+    notes: null
+  - name: TROFF
+    aliases: []
+    kind: command
+    category: system
+    format: TROFF
+    summary: トレースモードを解除する。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.248
+    notes: 'プログラム中にも記述可能。関連: TRON'
+  - name: TRON
+    aliases: []
+    kind: command
+    category: system
+    format: TRON
+    summary: トレースモードを有効にする。各行の実行後に行番号を表示しながら実行する。
+    params: []
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.248
+    notes: 'プログラム中にも記述可能。関連: TROFF'
+  - name: USING
+    aliases: []
+    kind: operator
+    category: io
+    format: USING [<書式文字列>]
+    summary: PRINT/LPRINTの出力を書式化する。#=数値の桁、.=小数点区切り、,=3桁カンマ区切り、^=指数表記、&=文字列の桁のプレースホルダを使う。
+    params:
+      - name: 書式文字列
+        type: string
+        optional: true
+        range: null
+        notes: '#・&の最大個数は書式(1)(2)(3)(4)(6)で11、書式(5)で14。'
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.249
+    notes: null
+  - name: VAL
+    aliases: []
+    kind: function
+    category: string
+    format: VAL(<文字列>)
+    summary: 文字列を数値に変換する。先頭が&なら16進文字列として解釈する。不正な文字を含む場合は0を返す。
+    params:
+      - name: 文字列
+        type: string
+        optional: false
+        range: null
+        notes: 10進文字列は0〜9・小数点・指数・符号を含められる。16進文字列は&で始まる。
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.250
+    notes: '関連: STR$, HEX$'
+  - name: VDEG
+    aliases: []
+    kind: function
+    category: math
+    format: VDEG(<文字列>)
+    summary: 度・分・秒形式の文字列を10進の度数（角度）に変換する。
+    params:
+      - name: 文字列
+        type: string
+        optional: false
+        range: null
+        notes: dd度mm分ss.rr秒(度分秒記号区切り)形式の文字列。実行例は「1度30分36秒」→1.51。
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.251 / manual_en p.236
+    notes: 独語版の実行例出力は「1. 51」でOCR崩れを疑っていたが、英語版で同じ例が「1.51」と明瞭に出力されており、かつ1度30分36秒を10進度に換算すると1+30/60+36/3600=1.51度という計算結果とも一致することから、OCR崩れではなく正しい数値だったと確定できた。度分秒の区切り記号自体は両版とも度記号・分記号・秒記号(ダブルクォート)による標準的なDMS表記。
+  - name: WAIT
+    aliases: []
+    kind: statement
+    category: io
+    format: WAIT [<数値>]
+    summary: PRINT文実行後の待機時間を1/64秒単位で指定する。引数省略時は無限待機（ENTERキーで再開）。
+    params:
+      - name: 数値
+        type: numeric
+        optional: true
+        range: 0 <= n <= 65535
+        notes: 省略時は0（待機なし）が既定値。64で約1秒。
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.251
+    notes: null
+  - name: WHILE..WEND
+    aliases: []
+    kind: statement
+    category: control
+    format: 'WHILE <条件>
+
+      <文>
+
+      WEND'
+    summary: 条件が真である間、文を繰り返す前判定ループ。WHILEとWENDは必ず対で使う。
+    params:
+      - name: 条件
+        type: expr
+        optional: false
+        range: null
+        notes: null
+    returns: none
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.252
+    notes: ループ内でCLEAR/DIM/ERASEは使用不可。
+  - name: XOR
+    aliases: []
+    kind: operator
+    category: math
+    format: <数値式1> XOR <数値式2>
+    summary: 2つの数値をそれぞれ-32768〜32767の16bit2の補数表現に変換し、対応するビットごとの排他的論理和(XOR)を取る。
+    params:
+      - name: 数値式1
+        type: numeric
+        optional: false
+        range: -32768 <= x <= 32767
+        notes: null
+      - name: 数値式2
+        type: numeric
+        optional: false
+        range: -32768 <= x <= 32767
+        notes: null
+    returns: numeric
+    errors: []
+    phase: 1
+    status: documented
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_de p.42 (5.11 論理式)
+    notes: AND/ORと同じ節に「2つの数値を16bit2の補数に変換し、対応するビットのペアごとに論理演算を評価する」と明記。真理値表は図版でOCR未取得。詳細は AND の notes を参照。

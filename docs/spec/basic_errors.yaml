@@ -1,0 +1,204 @@
+errors:
+  - code: 10
+    summary: 許されない式または命令が使われた（構文エラー）。
+    triggers: []
+    source: manual p.296
+  - code: 12
+    summary: ダイレクトモードまたはプログラム実行中に許されない命令を実行しようとした。PROモード/RUNモードの選択が誤っている。
+    triggers: []
+    source: manual p.296
+  - code: 13
+    summary: CONT命令が不正な状態で実行された。
+    triggers: []
+    source: manual p.296
+  - code: 14
+    summary: 存在しないプログラムにパスワードを設定しようとした。
+    triggers: []
+    source: manual p.296
+  - code: 15
+    summary: BSAVE M でアドレス指定が誤っている。
+    triggers: []
+    source: manual p.296
+  - code: 20
+    summary: 計算結果が演算可能範囲（10^100）を超えた（オーバーフロー）。
+    triggers: []
+    source: manual p.296
+  - code: 21
+    summary: ゼロ除算が発生した。
+    triggers: []
+    source: manual p.296
+  - code: 22
+    summary: '許されない演算が行われた（例: LOG -3 や ASN 2 など定義域外の計算）。'
+    triggers:
+      - LOG に負の数を与えた場合
+      - ASN に範囲外（|x|>1）の値を与えた場合
+    source: manual p.296
+  - code: 30
+    summary: 既に使用されている配列変数名を再度割り当てようとした（DIMの重複）。
+    triggers: []
+    source: manual p.296
+  - code: 31
+    summary: DIM命令なしで配列変数名が指定された。
+    triggers: []
+    source: manual p.296
+  - code: 32
+    summary: 配列の添字がDIMで確保したサイズを超えた（添字範囲外）。
+    triggers: []
+    source: manual p.297
+  - code: 33
+    summary: 指定した値が許容範囲を超えている。
+    triggers: []
+    source: manual p.297
+  - code: 40
+    summary: 指定した行番号またはラベルが存在しない。
+    triggers: []
+    source: manual p.297
+  - code: 41
+    summary: 行番号の指定が不正（有効範囲は1〜65279）。
+    triggers: []
+    source: manual p.297
+  - code: 43
+    summary: RENUMまたはLCOPYの指定が不正（存在しない行番号を指定した、または行の順序指定を誤った）。
+    triggers: []
+    source: manual p.297
+  - code: 44
+    summary: LLISTやDELETEなどの命令で、終了行番号が開始行番号より小さい。
+    triggers: []
+    source: manual p.297
+  - code: 50
+    summary: GOSUB、FOR、REPEAT、WHILE、SWITCHのネスト段数が許容範囲を超えた。
+    triggers: []
+    source: manual p.297
+  - code: 51
+    summary: サブルーチン呼び出しのないままRETURN命令を実行しようとした。
+    triggers: []
+    source: manual p.297
+  - code: 52
+    summary: NEXT命令に対応するFOR命令が無い。
+    triggers: []
+    source: manual p.297
+  - code: 53
+    summary: READ命令に対応するDATA命令が無い。
+    triggers: []
+    source: manual p.297
+  - code: 54
+    summary: データバッファ（8個）または関数バッファ（16個）の許容数を超えた。
+    triggers: []
+    source: manual p.297
+  - code: 55
+    summary: 入力した文字列が255バイトを超えた、または行が255バイトを超えた。
+    triggers: []
+    source: manual p.297
+  - code: 60
+    summary: プログラムまたは変数のサイズがメモリ容量を超えた。
+    triggers: []
+    source: manual p.297
+  - code: 61
+    summary: ブロック形式のIF/ELSEにENDIF命令を対応させずに実行しようとした。
+    triggers: []
+    source: manual p.296-297
+  - code: 62
+    summary: REPEATに対応しないUNTILが使われた。
+    triggers: []
+    source: manual p.298
+  - code: 63
+    summary: WENDに対応しないWHILEが使われた。
+    triggers: []
+    source: manual p.298
+  - code: 64
+    summary: WHILEループに対応するWENDが見つからない。
+    triggers: []
+    source: manual p.298
+  - code: 66
+    summary: SWITCH命令内でDEFAULT命令の後にさらにCASEまたはDEFAULT命令が使われた。
+    triggers: []
+    source: manual p.298
+  - code: 68
+    summary: ENDSWITCHに対応しないSWITCH/CASE/DEFAULTが使われた。
+    triggers: []
+    source: manual p.298
+  - code: 69
+    summary: SWITCHに対応しないCASE/DEFAULT/ENDSWITCHが実行された。
+    triggers: []
+    source: manual p.298
+  - code: 70
+    summary: USING命令で指定した書式で文字を出力できない。
+    triggers: []
+    source: manual p.298
+  - code: 71
+    summary: USING命令で指定した書式そのものが不正。
+    triggers: []
+    source: manual p.298
+  - code: 72
+    summary: 入出力デバイスのエラー。
+    triggers: []
+    source: manual p.298
+  - code: 77
+    summary: 書き込むファイルのサイズが上限を超えた。
+    triggers: []
+    source: manual p.298
+  - code: 80
+    summary: シリアルインタフェースからの読み込みでチェックサムエラーが発生した。
+    triggers: []
+    source: manual p.298
+  - code: 81
+    summary: シリアルインタフェースでのプログラム/データ入出力中にタイムアウトが発生した。
+    triggers: []
+    source: manual p.298
+  - code: 82
+    summary: BLOAD ? 命令によるベリファイで内容の不一致が検出された。
+    triggers: []
+    source: manual p.298
+  - code: 83
+    summary: INPUT#命令で指定した変数の型と読み込んだデータの型が一致しない。
+    triggers: []
+    source: manual p.298
+  - code: 84
+    summary: プリンタが誤動作した。
+    triggers: []
+    source: manual p.298
+  - code: 85
+    summary: PRINTやINPUTなどの出力命令の前にOPEN命令でデバイス／ファイルを開いていなかった。
+    triggers: []
+    source: manual p.298
+  - code: 86
+    summary: 既に開かれているデバイス／ファイル番号を再度開こうとした。
+    triggers: []
+    source: manual p.298
+  - code: 87
+    summary: ファイルの終端に達しているのにデータを読み込もうとした。
+    triggers: []
+    source: manual p.298
+  - code: 90
+    summary: '数値変数へ文字を、あるいは文字列変数へ数値を代入しようとした。または数値専用の関数（例: SIN A$）に文字列変数を指定した（型不一致）。'
+    triggers:
+      - SIN A$ のように数値関数へ文字列変数を渡した場合
+    source: manual p.298
+  - code: 91
+    summary: 数値を代入済みの変数を文字列変数として、または文字を代入済みの変数を数値変数として使おうとした（型の食い違い）。
+    triggers: []
+    source: manual p.298
+  - code: 92
+    summary: パスワードが一致しない。
+    triggers: []
+    source: manual p.298
+  - code: 93
+    summary: パスワードが設定されている状態でMON、PEEK、POKE、RENUM命令を手動実行しようとした。
+    triggers: []
+    source: manual p.298
+  - code: 94
+    summary: 指定したファイルが見つからない。
+    triggers: []
+    source: manual p.298
+  - code: 95
+    summary: ファイル名が不正。
+    triggers: []
+    source: manual p.298
+  - code: 96
+    summary: BASICモードでTEXTファイルを、またはTEXTモードでBASICファイルを読み込もうとした（モードとファイル種別の不一致）。
+    triggers: []
+    source: manual p.298
+  - code: 97
+    summary: ファイル数が255を超えた。
+    triggers: []
+    source: manual p.298

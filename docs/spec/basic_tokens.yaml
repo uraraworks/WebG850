@@ -1,0 +1,286 @@
+meta:
+  source: "akiyan.com / PC-G850S 中間コード表（情報元: ポケコンの場所）"
+  caveat: "G850S ベース。G850V との差分は未検証。"
+tokens:
+  - code: 0x0F
+    name: "MON"
+  - code: 0x10
+    name: "RUN"
+  - code: 0x11
+    name: "NEW"
+  - code: 0x12
+    name: "CONT"
+  - code: 0x13
+    name: "PASS"
+  - code: 0x14
+    name: "LIST"
+  - code: 0x15
+    name: "LLIST"
+  - code: 0x16
+    name: "CLOAD"
+  - code: 0x17
+    name: "RENUM"
+  - code: 0x18
+    name: "LOAD"
+  - code: 0x1B
+    name: "DELETE"
+  - code: 0x1C
+    name: "FILES"
+  - code: 0x1F
+    name: "LCOPY"
+  - code: 0x20
+    name: "CSAVE"
+  - code: 0x21
+    name: "OPEN"
+  - code: 0x22
+    name: "CLOSE"
+  - code: 0x23
+    name: "SAVE"
+  - code: 0x25
+    name: "RANDOMIZE"
+  - code: 0x26
+    name: "DEGREE"
+  - code: 0x27
+    name: "RADIAN"
+  - code: 0x28
+    name: "GRAD"
+  - code: 0x29
+    name: "BEEP"
+  - code: 0x2A
+    name: "WAIT"
+  - code: 0x2B
+    name: "GOTO"
+  - code: 0x2C
+    name: "TRON"
+  - code: 0x2D
+    name: "TROFF"
+  - code: 0x2E
+    name: "CLEAR"
+  - code: 0x2F
+    name: "USING"
+  - code: 0x30
+    name: "DIM"
+  - code: 0x31
+    name: "CALL"
+  - code: 0x32
+    name: "POKE"
+  - code: 0x33
+    name: "GPRINT"
+  - code: 0x34
+    name: "PSET"
+  - code: 0x35
+    name: "PRESET"
+  - code: 0x3A
+    name: "ERASE"
+  - code: 0x3B
+    name: "LFILES"
+  - code: 0x3C
+    name: "KILL"
+  - code: 0x45
+    name: "OUT"
+  - code: 0x48
+    name: "PIOSET"
+  - code: 0x49
+    name: "POIPUT"
+  - code: 0x4A
+    name: "SPOUT"
+  - code: 0x4B
+    name: "SPINP"
+  - code: 0x4C
+    name: "HDCOPY"
+  - code: 0x4D
+    name: "ENDIF"
+  - code: 0x4E
+    name: "REPEAT"
+  - code: 0x4F
+    name: "UNTIL"
+  - code: 0x50
+    name: "CLS"
+  - code: 0x51
+    name: "LOCATE"
+  - code: 0x52
+    name: "TO"
+  - code: 0x53
+    name: "STEP"
+  - code: 0x54
+    name: "THEN"
+  - code: 0x55
+    name: "ON"
+  - code: 0x56
+    name: "IF"
+  - code: 0x57
+    name: "FOR"
+  - code: 0x58
+    name: "LET"
+  - code: 0x59
+    name: "REM"
+  - code: 0x5A
+    name: "END"
+  - code: 0x5B
+    name: "NEXT"
+  - code: 0x5C
+    name: "STOP"
+  - code: 0x5D
+    name: "READ"
+  - code: 0x5E
+    name: "DATA"
+  - code: 0x60
+    name: "PRINT"
+  - code: 0x61
+    name: "INPUT"
+  - code: 0x62
+    name: "GOSUB"
+  - code: 0x63
+    name: "LNINPUT"
+  - code: 0x64
+    name: "LPRINT"
+  - code: 0x65
+    name: "RETURN"
+  - code: 0x66
+    name: "RESTORE"
+  - code: 0x68
+    name: "GCURSOR"
+  - code: 0x69
+    name: "LINE"
+  - code: 0x6F
+    name: "CIRCLE"
+  - code: 0x70
+    name: "PAINT"
+  - code: 0x71
+    name: "OUTPUT"
+  - code: 0x72
+    name: "APPEND"
+  - code: 0x73
+    name: "AS"
+  - code: 0x76
+    name: "ELSE"
+  - code: 0x7A
+    name: "WHILE"
+  - code: 0x7B
+    name: "WEND"
+  - code: 0x7C
+    name: "SWITCH"
+  - code: 0x7D
+    name: "CASE"
+  - code: 0x7E
+    name: "DEFAULT"
+  - code: 0x7F
+    name: "ENDSWITCH"
+  - code: 0x80
+    name: "MDF"
+  - code: 0x81
+    name: "REC"
+  - code: 0x82
+    name: "POL"
+  - code: 0x86
+    name: "TEN"
+  - code: 0x87
+    name: "RCP"
+  - code: 0x88
+    name: "SQU"
+  - code: 0x89
+    name: "CUR"
+  - code: 0x8A
+    name: "HSN"
+  - code: 0x8B
+    name: "HCS"
+  - code: 0x8C
+    name: "HTN"
+  - code: 0x8D
+    name: "AHS"
+  - code: 0x8E
+    name: "AHC"
+  - code: 0x8F
+    name: "AHT"
+  - code: 0x90
+    name: "FACT"
+  - code: 0x91
+    name: "LN"
+  - code: 0x92
+    name: "LOG"
+  - code: 0x93
+    name: "EXP"
+  - code: 0x94
+    name: "SQR"
+  - code: 0x95
+    name: "SIN"
+  - code: 0x96
+    name: "COS"
+  - code: 0x97
+    name: "TAN"
+  - code: 0x98
+    name: "INT"
+  - code: 0x99
+    name: "ABS"
+  - code: 0x9A
+    name: "SGN"
+  - code: 0x9B
+    name: "DEG"
+  - code: 0x9C
+    name: "DMS"
+  - code: 0x9D
+    name: "ASN"
+  - code: 0x9E
+    name: "ACS"
+  - code: 0x9F
+    name: "ATN"
+  - code: 0xA0
+    name: "RND"
+  - code: 0xA1
+    name: "AND"
+  - code: 0xA2
+    name: "OR"
+  - code: 0xA3
+    name: "NOT"
+  - code: 0xA4
+    name: "PEEK"
+  - code: 0xA5
+    name: "XOR"
+  - code: 0xA6
+    name: "INP"
+  - code: 0xA8
+    name: "PIOGET"
+  - code: 0xAD
+    name: "POINT"
+  - code: 0xAE
+    name: "PI"
+  - code: 0xAF
+    name: "FRE"
+  - code: 0xB0
+    name: "EOF"
+  - code: 0xB2
+    name: "LOF"
+  - code: 0xB6
+    name: "NCR"
+  - code: 0xB7
+    name: "NPR"
+  - code: 0xBF
+    name: "CUB"
+  - code: 0xC6
+    name: "MOD"
+  - code: 0xC7
+    name: "FIX"
+  - code: 0xD0
+    name: "ASC"
+  - code: 0xD1
+    name: "VAL"
+  - code: 0xD2
+    name: "LEN"
+  - code: 0xD3
+    name: "VDEG"
+  - code: 0xE9
+    name: "INKEY$"
+  - code: 0xEA
+    name: "MID$"
+  - code: 0xEB
+    name: "LEFT$"
+  - code: 0xEC
+    name: "RIGHT$"
+  - code: 0xF0
+    name: "CHR$"
+  - code: 0xF1
+    name: "STR$"
+  - code: 0xF2
+    name: "HEX$"
+  - code: 0xF3
+    name: "DMS$"
