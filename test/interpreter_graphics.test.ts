@@ -2,7 +2,7 @@
 // docs/design/phase1_runtime.md・phase1_architecture.md の各節に対応する。
 // test/interpreter.test.ts と同じ「BASICソース → 実行 → 画面ダンプまたは変数の値」の形。
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuiltinTable } from '../src/basic/evaluator.js';
 import { Interpreter } from '../src/basic/interpreter.js';
 import { parseProgram } from '../src/basic/parser.js';
@@ -164,6 +164,106 @@ describe('GCURSOR / GPRINT', () => {
 describe('BEEP', () => {
   it('BEEP は AudioContext 未接続でも例外を投げず実行できる（NullSound）', () => {
     expect(() => run('10 BEEP 1')).not.toThrow();
+  });
+});
+
+describe('WAIT（中断・再開をまたいだ実時間待ちの確認）', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** WAIT の Suspend まで進める（'wait' に到達するまで gen.next() を呼ぶ）。 */
+  function advanceToWait(gen: Generator): IteratorResult<unknown> {
+    let res = gen.next();
+    let guard = 0;
+    while (!res.done && (res.value as { kind?: string }).kind !== 'wait') {
+      res = gen.next();
+      guard++;
+      if (guard > 1000) throw new Error('WAIT に到達しませんでした');
+    }
+    return res;
+  }
+
+  function runToDone(gen: Generator, res: IteratorResult<unknown>): void {
+    let guard = 0;
+    while (!res.done) {
+      res = gen.next();
+      guard++;
+      if (guard > 10000) throw new Error('完了しませんでした');
+    }
+  }
+
+  it('gen.next() を何度呼んでも、Date.now() が進まない限り完了しない（呼び出し回数では進まない）', () => {
+    const program = parseProgram('10 WAIT 64\n20 A=1'); // 64/64秒=1000ms
+    const machine = new Machine(1);
+    const interpreter = new Interpreter(program, machine, {});
+    const gen = interpreter.run();
+
+    let res = advanceToWait(gen);
+    expect(res.done).toBe(false);
+
+    // 実時間を進めずに20回呼んでも終わらない。
+    for (let i = 0; i < 20; i++) {
+      res = gen.next();
+      expect(res.done).toBe(false);
+    }
+
+    // 実時間を締切ぶん進めれば、次の1回で完了する。
+    vi.setSystemTime(1000);
+    runToDone(gen, res);
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(1));
+  });
+
+  it('締切は絶対時刻として一度だけ計算される（何フレーム分呼んでも締切自体はずれない）', () => {
+    const program = parseProgram('10 WAIT 64\n20 A=1');
+    const machine = new Machine(1);
+    const interpreter = new Interpreter(program, machine, {});
+    const gen = interpreter.run();
+
+    let res = advanceToWait(gen);
+    // 締切直前(999ms)まで細かく何度も呼んでも完了しない。
+    for (let t = 100; t < 1000; t += 100) {
+      vi.setSystemTime(t);
+      res = gen.next();
+      expect(res.done).toBe(false);
+    }
+    vi.setSystemTime(1000);
+    runToDone(gen, res);
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(1));
+  });
+
+  it('WAIT の途中で RUN をやり直すと、古い締切を引きずらず新しい WAIT を正しく待つ（resetForRun のバグ修正の回帰テスト）', () => {
+    // 100秒待つ WAIT。1回目の実行を「BREAK等で放棄」し、旧締切をとうに過ぎてから
+    // RUN し直す。resetForRun が waitDeadline をクリアしていないと、新しい実行の
+    // WAIT が古い（過去になった）締切をそのまま読んで待たずに即完了してしまう。
+    const program = parseProgram('10 WAIT 6400\n20 A=1');
+    const machine = new Machine(1);
+    const interpreter = new Interpreter(program, machine, {});
+
+    let gen = interpreter.run();
+    let res = advanceToWait(gen);
+    expect(res.done).toBe(false); // 締切=100000ms
+
+    // 旧締切をとうに過ぎた時刻でRUNし直す。
+    vi.setSystemTime(200000);
+    gen = interpreter.run();
+    res = advanceToWait(gen);
+    // 新しい実行でも改めて WAIT で止まるはず（即完了してはいけない）。
+    expect(res.done).toBe(false);
+
+    // 新しい締切(200000+100000=300000ms)の手前ではまだ完了しない。
+    vi.setSystemTime(299000);
+    res = gen.next();
+    expect(res.done).toBe(false);
+
+    // 新しい締切を過ぎれば完了する。
+    vi.setSystemTime(300100);
+    runToDone(gen, res);
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(1));
   });
 });
 

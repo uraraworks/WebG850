@@ -226,6 +226,13 @@ export class Interpreter {
       this.builtinContext.angleMode = 'DEG';
     }
     this.contAvailable = false;
+    // INPUT/WAIT の中断状態も RUN でリセットする。これを忘れると、WAIT の
+    // 途中（yield を挟んで複数フレームにまたがっている最中）に RUN で再実行
+    // したとき、新しい実行が古い `waitDeadline`（別の WAIT 文の締切）を
+    // そのまま読んでしまい、締切がすでに過ぎていれば WAIT が待たずに即座に
+    // 完了する、といった壊れ方をする（WAIT の確認作業で発見）。
+    this.inputState = null;
+    this.waitDeadline = null;
   }
 
   /** `RUN` 相当。先頭から実行する。変数・スタック・DATAポインタを初期化する。 */
@@ -1077,6 +1084,26 @@ export class Interpreter {
    * なっていない（次フレームを予約するだけ）。ここでは `Date.now()` を締切として
    * 自前で管理し、ホスト側の対応が無くても実時間で正しく待つようにした
    * （ホストが `ms` を活用する形へ改善しても壊れない設計）。
+   *
+   * 【中断・再開の確認】 別プロジェクトで「コアが実時間に自己同期していて、
+   * 呼び出し回数を増やしても進まない」事故があったため、同じ罠を踏んでいないか
+   * を実際に確認した（`test/interpreter.test.ts` の WAIT の節）。
+   * - 締切は `Date.now() + ms` という**絶対時刻**として一度だけ計算し、以後は
+   *   `残り = 締切 - Date.now()` を毎回計算し直す。フレーム間隔やフレームが
+   *   何回呼ばれたかには依存しないため、rAF が止まる／間引かれる環境
+   *   （`feedback_headless_raf_never_runs.md`）でも、次にこの文が呼ばれた
+   *   時点の実時刻だけで正しく残り時間を再計算できることをテストで確認した
+   *   （フレームを何回空回しさせても Date.now() を進めない限り完了しない、
+   *   逆に Date.now() だけ進めれば次の1回の呼び出しで完了する、の両方を確認）。
+   * - 一方で `waitDeadline` は generator 局所変数ではなく Interpreter の
+   *   フィールドなので、STOP→CONT をまたいでも保持されて正しく動く（CONT は
+   *   `resetForRun` を呼ばないため）反面、**RUN で新しい実行を始めても
+   *   古い値が残ったままになるバグを実際に発見した**：WAIT の途中で
+   *   （中断中の Suspend を捨てて）RUN し直すと、新しい実行が前回の
+   *   `waitDeadline`（既に過ぎている可能性が高い締切）をそのまま読み、
+   *   WAIT が待たずに即完了してしまう。`resetForRun` に
+   *   `this.waitDeadline = null`（`this.inputState = null` も同様の理由で）
+   *   を追加して修正済み。
    */
   private executeWait(stmt: Extract<Stmt, { kind: 'WaitStmt' }>): StmtResult {
     if (stmt.value === null) {
