@@ -372,12 +372,13 @@ export class Evaluator {
       default:
         throw new BasicError(ErrorCode.SYNTAX, `未知の比較演算子です: ${String(op)}`);
     }
-    // 【判断】 依頼指示「比較の結果は真1/偽0」に従う。ただし
-    // docs/spec/basic_commands.yaml の AND/OR の notes は「比較式(真=-1/偽=0)」と
-    // 明記しており実機はおそらく -1/0 である。IF/WHILE/UNTIL/FOR-skip の判定は
-    // すべて「非0=真」で見ているため、この選択が分岐の正誤に影響することはないが、
-    // 比較結果を変数へ代入してから使う作品では実機と表示上の値が異なりうる。
-    return numeric(result ? 1 : 0);
+    // 比較結果は 真=-1（全ビット1）／偽=0。
+    // 根拠: docs/spec/basic_commands.yaml の AND の notes に「比較式(真=-1/偽=0)」と
+    // 明記されている（5章冒頭 p.42 直前の表現規約）。また NOT の notes にある
+    // NOT X = -(X+1) というビット単位全反転の定義とも、真が -1 のときだけ整合する
+    // （真が 1 だと NOT 1 = -2 となり真のまま残ってしまう）。
+    // 以前は「真1/偽0」としていたが誤りだったため訂正した（docs/design/phase1_grammar.md 参照）。
+    return numeric(result ? -1 : 0);
   }
 }
 
