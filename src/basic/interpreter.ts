@@ -7,11 +7,16 @@
 import type {
   AssignTarget,
   DataValue,
+  Expr,
   ForStmt,
+  IfClause,
+  InputItem,
+  InputPrompt,
   JumpTarget,
   ProgramLine,
   Stmt,
 } from './ast.js';
+import type { FillPattern } from '../machine/screen.ts';
 import {
   type AngleMode,
   type BuiltinContext,
@@ -95,6 +100,12 @@ interface DataItem {
   readonly lineNumber: number | null;
 }
 
+/** `INPUT` の「メッセージ1つ＋それに続く変数群」の単位（`executeInput` 参照）。 */
+interface InputGroup {
+  readonly prompt: InputPrompt | null;
+  readonly targets: AssignTarget[];
+}
+
 // ─────────────────────────────────────────────────────────────
 // インタプリタ本体
 // ─────────────────────────────────────────────────────────────
@@ -117,6 +128,8 @@ export class Interpreter {
   private callStack: PC[] = [];
   private tron = false;
   private breakRequested = false;
+  /** INPUT/WAIT で同じ文へ再突入するときに行頭処理を1回だけスキップするためのフラグ。 */
+  private suspendedAtSamePC = false;
 
   angleMode: AngleMode = 'DEG';
   /** 実行中かどうか（`START`/`GOTO`しても行が尽きたら false になる）。 */
@@ -131,7 +144,21 @@ export class Interpreter {
   constructor(program: readonly ProgramLine[], machine: Machine, builtins: BuiltinTable = {}) {
     this.program = program;
     this.machine = machine;
-    this.builtins = builtins;
+    // POINT は画面（machine/screen.ts）に依存するため functions/index.ts の
+    // BUILTINS には含まれていない（同ファイルのコメント参照）。「画面を持つ
+    // 実装から BUILTINS へ足す想定」どおり、画面にアクセスできるここで足す。
+    this.builtins = {
+      ...builtins,
+      POINT: {
+        minArgs: 2,
+        maxArgs: 2,
+        fn: (args) => {
+          const x = Math.trunc(asNumeric(args[0]));
+          const y = Math.trunc(asNumeric(args[1]));
+          return numeric(this.machine.screen.point(x, y));
+        },
+      },
+    };
 
     program.forEach((line, idx) => {
       if (line.lineNumber !== null) {
@@ -177,8 +204,12 @@ export class Interpreter {
 
   // ── 公開エントリポイント ────────────────────────────────
 
-  /** `RUN` 相当。先頭から実行する。変数・スタック・DATAポインタを初期化する。 */
-  *run(): Generator<Suspend, void, void> {
+  /**
+   * `RUN` 共通の初期化処理（変数・スタック・DATAポインタ・TRON状態のリセット）。
+   * 外部エントリポイントの `run()` と、プログラム中に書かれた `RUN` 文
+   * （`executeRunStmt`）の双方から呼ばれる。
+   */
+  private resetForRun(): void {
     this.variables.clear();
     this.loopStack = [];
     this.callStack = [];
@@ -192,6 +223,12 @@ export class Interpreter {
       this.angleMode = 'DEG';
       this.builtinContext.angleMode = 'DEG';
     }
+    this.contAvailable = false;
+  }
+
+  /** `RUN` 相当。先頭から実行する。変数・スタック・DATAポインタを初期化する。 */
+  *run(): Generator<Suspend, void, void> {
+    this.resetForRun();
     this.pc = { lineIndex: 0, stmtIndex: 0 };
     yield* this.coreLoop();
   }
@@ -223,7 +260,10 @@ export class Interpreter {
         continue;
       }
 
-      if (this.pc.stmtIndex === 0) {
+      // INPUT/WAIT で同じ文を再開する場合、pc は据え置かれたままここへ戻ってくる。
+      // その場合は行頭の BREAK確認/TRON/yield を再実行しない
+      // （多重にTRON表示やyieldが挟まるのを防ぐ。`suspendedAtSamePC` 参照）。
+      if (this.pc.stmtIndex === 0 && !this.suspendedAtSamePC) {
         // TRON / BREAK 確認 / 画面更新の譲渡は「行の実行ループの先頭に1箇所だけ」
         // （docs/design/phase1_runtime.md「TRON / TROFF」節）。
         if (this.breakRequested) {
@@ -236,6 +276,7 @@ export class Interpreter {
         }
         yield { kind: 'yield' };
       }
+      this.suspendedAtSamePC = false;
 
       const stmt = line.statements[this.pc.stmtIndex];
       if (!stmt) {
@@ -267,7 +308,10 @@ export class Interpreter {
       } else if (result === 'jumped') {
         // pc はハンドラ側で既に更新済み。
       } else {
-        // 将来の INPUT/WAIT 用（Phase1 の実装対象文からは発生しない）。
+        // INPUT/WAIT のキー入力・時間待ち。pc はこの文のまま据え置き、
+        // 次回 coreLoop に戻ってきたときに同じ文（executeStatement）を
+        // 呼び直して続きから再開する（inputState 等はインタプリタ側で保持）。
+        this.suspendedAtSamePC = true;
         yield result;
       }
     }
@@ -414,6 +458,94 @@ export class Interpreter {
       this.printZoneTab();
     }
     // trailingSep === ';' は何もしない（次のPRINTがそのまま連結される）。
+    return 'advance';
+  }
+
+  // ── INPUT ───────────────────────────────────────────────
+  //
+  // 【設計】 INPUT は「メッセージ表示 → 1行入力待ち（yield）→ カンマ区切りで
+  // 複数変数へ代入」を、メッセージが挟まるたびに繰り返す。yield を挟んだ再開のため
+  // 状態（どのグループまで処理したか）を `inputState` に保持し、次に coreLoop から
+  // 呼ばれたときに続きから再開する（pc はこの文のまま据え置かれる。coreLoop 側の
+  // `suspendedAtSamePC` フラグ参照）。
+  //
+  // 【判断】 `InputPrompt` はメッセージ文字列（Expr）を持つが、grammar上は文字列
+  // リテラル以外の式が来ることは想定していない。`asString` で評価するのではなく
+  // 一般の `evaluate` 結果をそのまま文字列化する（数値式が来ても壊れないように）。
+
+  private inputGroupsCache: { items: readonly InputItem[]; groups: InputGroup[] } | null = null;
+  private inputState: { groups: InputGroup[]; groupIndex: number; promptShown: boolean } | null = null;
+
+  private buildInputGroups(items: readonly InputItem[]): InputGroup[] {
+    if (this.inputGroupsCache && this.inputGroupsCache.items === items) {
+      return this.inputGroupsCache.groups;
+    }
+    const groups: InputGroup[] = [];
+    let current: InputGroup | null = null;
+    for (const item of items) {
+      if (item.kind === 'InputPrompt') {
+        current = { prompt: item, targets: [] };
+        groups.push(current);
+      } else {
+        if (!current) {
+          current = { prompt: null, targets: [] };
+          groups.push(current);
+        }
+        current.targets.push(item);
+      }
+    }
+    this.inputGroupsCache = { items, groups };
+    return groups;
+  }
+
+  /**
+   * INPUT で入力された1行分の生テキストを、対象変数の型に応じて変換する。
+   *
+   * 【判断】 数値変換に失敗した場合の実機挙動（"Redo from start" のような
+   * 再入力要求）はマニュアルに記載が無く、再入力フローの実装はホスト側との
+   * 協調が要るため今回のスコープ外。安全側として0を代入し実行を継続する
+   * （無限ループや例外送出を避ける）。
+   */
+  private convertInputValue(raw: string, target: AssignTarget): BasicValue {
+    if (variableValueType(target.name) === 'string') {
+      return str(raw);
+    }
+    const n = Number(raw.trim());
+    return numeric(Number.isNaN(n) ? 0 : n);
+  }
+
+  private executeInput(stmt: Extract<Stmt, { kind: 'InputStmt' }>): StmtResult {
+    if (!this.inputState) {
+      this.inputState = { groups: this.buildInputGroups(stmt.items), groupIndex: 0, promptShown: false };
+    }
+    const st = this.inputState;
+    while (st.groupIndex < st.groups.length) {
+      const group = st.groups[st.groupIndex];
+      if (!st.promptShown) {
+        if (group.prompt) {
+          const msgValue = this.evaluator.evaluate(group.prompt.message);
+          const msg = isNumeric(msgValue) ? formatNumber(msgValue.value) : msgValue.value;
+          this.machine.screen.writeText(msg);
+          if (!group.prompt.quiet) this.machine.screen.writeText('?');
+        } else {
+          this.machine.screen.writeText('?');
+        }
+        st.promptShown = true;
+      }
+      if (!this.machine.keyboard.isLineReady()) {
+        return { kind: 'input', prompt: '' };
+      }
+      const line = this.machine.keyboard.takeLine();
+      this.machine.screen.writeText(`${line}\n`);
+      const parts = line.split(',');
+      group.targets.forEach((target, i) => {
+        const raw = (parts[i] ?? '').trim();
+        this.assignTo(target, this.convertInputValue(raw, target));
+      });
+      st.groupIndex++;
+      st.promptShown = false;
+    }
+    this.inputState = null;
     return 'advance';
   }
 
@@ -611,6 +743,61 @@ export class Interpreter {
     return 'jumped';
   }
 
+  // ── SWITCH / CASE / DEFAULT / ENDSWITCH ────────────────
+  //
+  // docs/design/phase1_runtime.md の方針どおり、ブロックを AST に畳まず
+  // 実行時に前方走査でマッチングする（IF/WHILE と同じ考え方）。
+  // `SWITCH` に到達したら式を1回評価し、値が一致する `CASE` （無ければ
+  // `DEFAULT`、それも無ければ `ENDSWITCH` 直後）まで前方走査してジャンプする。
+  // 一致した CASE の本体を実行し終えて次の CASE/DEFAULT マーカーに自然到達したら
+  // （フォールスルーはしない仕様のため）ENDSWITCH まで読み飛ばす。
+
+  private valuesEqual(a: BasicValue, b: BasicValue): boolean {
+    return a.type === b.type && a.value === b.value;
+  }
+
+  private executeSwitch(stmt: Extract<Stmt, { kind: 'SwitchStmt' }>): StmtResult {
+    const val = this.evaluator.evaluate(stmt.expr);
+    let pos = this.advancePosition(this.pc);
+    let depth = 0;
+    let defaultPC: PC | null = null;
+    while (pos) {
+      const s = this.statementAt(pos);
+      if (s) {
+        if (s.kind === 'SwitchStmt') {
+          depth++;
+        } else if (s.kind === 'EndSwitchStmt') {
+          if (depth === 0) {
+            this.pc = defaultPC ?? pos;
+            return 'jumped';
+          }
+          depth--;
+        } else if (depth === 0 && s.kind === 'CaseStmt') {
+          for (const ve of s.values) {
+            if (this.valuesEqual(this.evaluator.evaluate(ve), val)) {
+              this.pc = this.nextOf(pos);
+              return 'jumped';
+            }
+          }
+        } else if (depth === 0 && s.kind === 'DefaultStmt' && defaultPC === null) {
+          defaultPC = this.nextOf(pos);
+        }
+      }
+      pos = this.advancePosition(pos);
+    }
+    throw new BasicError(ErrorCode.SYNTAX, 'SWITCH: 対応する ENDSWITCH が見つかりません');
+  }
+
+  /** `CASE`/`DEFAULT` に自然到達（前のCASE本体からのフォールスルー）した場合、対応するENDSWITCHまで読み飛ばす。 */
+  private executeCaseOrDefaultFallthrough(): StmtResult {
+    const closePC = this.scanForward(this.pc, 'SwitchStmt', ['EndSwitchStmt']);
+    if (!closePC) {
+      throw new BasicError(ErrorCode.SYNTAX, 'CASE/DEFAULT: 対応する ENDSWITCH が見つかりません');
+    }
+    this.pc = this.nextOf(closePC);
+    return 'jumped';
+  }
+
   // ── GOTO / GOSUB / RETURN / ON..GOTO / ON..GOSUB ───────
 
   private executeGoto(stmt: Extract<Stmt, { kind: 'GotoStmt' }>): StmtResult {
@@ -682,6 +869,523 @@ export class Interpreter {
     return 'advance';
   }
 
+  // ── 画面・図形系 ────────────────────────────────────────
+
+  private evalCoord(e: Expr): number {
+    return Math.trunc(asNumeric(this.evaluator.evaluate(e)));
+  }
+
+  /** CIRCLE/PAINT のパターン番号（0〜6）へ丸める。範囲外は素直にクランプする（判断点）。 */
+  private clampPattern(n: number): FillPattern {
+    const t = Math.trunc(n);
+    return Math.max(0, Math.min(6, t)) as FillPattern;
+  }
+
+  private executePset(stmt: Extract<Stmt, { kind: 'PsetStmt' }>): StmtResult {
+    const x = this.evalCoord(stmt.x);
+    const y = this.evalCoord(stmt.y);
+    if (stmt.invert) {
+      this.machine.screen.pxor(x, y);
+    } else {
+      this.machine.screen.pset(x, y);
+    }
+    this.machine.screen.gcursor(x, y);
+    return 'advance';
+  }
+
+  private executePreset(stmt: Extract<Stmt, { kind: 'PresetStmt' }>): StmtResult {
+    const x = this.evalCoord(stmt.x);
+    const y = this.evalCoord(stmt.y);
+    this.machine.screen.preset(x, y);
+    this.machine.screen.gcursor(x, y);
+    return 'advance';
+  }
+
+  private executeLine(stmt: Extract<Stmt, { kind: 'LineStmt' }>): StmtResult {
+    const cur = this.machine.screen.graphicsCursor;
+    const x1 = stmt.from ? this.evalCoord(stmt.from.x) : cur.x;
+    const y1 = stmt.from ? this.evalCoord(stmt.from.y) : cur.y;
+    const x2 = this.evalCoord(stmt.to.x);
+    const y2 = this.evalCoord(stmt.to.y);
+    const mode = stmt.mode ?? 'S';
+    if (stmt.box === 'B') {
+      this.machine.screen.rect(x1, y1, x2, y2, mode);
+    } else if (stmt.box === 'BF') {
+      this.machine.screen.fillRect(x1, y1, x2, y2, mode);
+    } else if (stmt.lineStyle) {
+      const pattern = this.evalCoord(stmt.lineStyle) & 0xffff;
+      this.machine.screen.line(x1, y1, x2, y2, mode, pattern);
+    } else {
+      this.machine.screen.line(x1, y1, x2, y2, mode);
+    }
+    this.machine.screen.gcursor(x2, y2);
+    return 'advance';
+  }
+
+  private executeCircle(stmt: Extract<Stmt, { kind: 'CircleStmt' }>): StmtResult {
+    const x = this.evalCoord(stmt.x);
+    const y = this.evalCoord(stmt.y);
+    const r = asNumeric(this.evaluator.evaluate(stmt.radius));
+    this.machine.screen.circle(
+      x,
+      y,
+      r,
+      stmt.startAngle ? asNumeric(this.evaluator.evaluate(stmt.startAngle)) : undefined,
+      stmt.endAngle ? asNumeric(this.evaluator.evaluate(stmt.endAngle)) : undefined,
+      stmt.aspect ? asNumeric(this.evaluator.evaluate(stmt.aspect)) : undefined,
+      stmt.mode ?? undefined,
+      stmt.pattern ? this.clampPattern(asNumeric(this.evaluator.evaluate(stmt.pattern))) : undefined,
+    );
+    return 'advance';
+  }
+
+  private executePaint(stmt: Extract<Stmt, { kind: 'PaintStmt' }>): StmtResult {
+    const x = this.evalCoord(stmt.x);
+    const y = this.evalCoord(stmt.y);
+    const pattern = this.clampPattern(asNumeric(this.evaluator.evaluate(stmt.pattern)));
+    this.machine.screen.paint(x, y, pattern);
+    return 'advance';
+  }
+
+  private executeGcursor(stmt: Extract<Stmt, { kind: 'GcursorStmt' }>): StmtResult {
+    const x = this.evalCoord(stmt.x);
+    const y = this.evalCoord(stmt.y);
+    this.machine.screen.gcursor(x, y);
+    return 'advance';
+  }
+
+  /**
+   * `GPRINT <ビットパターン>[;<ビットパターン>…]`。1バイト＝縦8ドットの列として
+   * グラフィックカーソル位置から順に描く。
+   *
+   * 【判断】 ビットの向き（bit0が上か下か）はマニュアルに記載が無い。
+   * `font.ts`/`screen.putChar` が採用している「bit0＝セル上端」という向きに
+   * 合わせて一貫性を取った。
+   *
+   * 【判断】 `,`区切りは「1ドット分の隙間」、末尾`;`は「カーソル位置保持」と
+   * notes にあるが、パーサ段階で末尾の区切り記号は保持されない設計になっている
+   * （`parser.ts` の `parseGprintStmt` 参照）ため、実行時に「行末で改行するか」を
+   * 判定できない。安全側として常にカーソル位置を保持する（末尾`;`相当）を採用した。
+   */
+  private executeGprint(stmt: Extract<Stmt, { kind: 'GprintStmt' }>): StmtResult {
+    let { x, y } = this.machine.screen.graphicsCursor;
+    if (stmt.items.length === 0) {
+      // 引数無しの GPRINT はカーソルを1ドット下げるだけ（notes参照）。
+      this.machine.screen.gcursor(x, y + 1);
+      return 'advance';
+    }
+    for (const seg of stmt.items) {
+      if (seg.sep === ',') {
+        x += 1;
+      }
+      const value = this.evaluator.evaluate(seg.value);
+      for (const byte of this.gprintBytes(value)) {
+        for (let dy = 0; dy < 8; dy++) {
+          if ((byte >> dy) & 1) this.machine.screen.pset(x, y + dy);
+        }
+        x += 1;
+      }
+    }
+    this.machine.screen.gcursor(x, y);
+    return 'advance';
+  }
+
+  private gprintBytes(v: BasicValue): number[] {
+    if (isNumeric(v)) {
+      return [Math.trunc(v.value) & 0xff];
+    }
+    const s = v.value;
+    const bytes: number[] = [];
+    for (let i = 0; i + 1 < s.length; i += 2) {
+      const b = parseInt(s.slice(i, i + 2), 16);
+      if (!Number.isNaN(b)) bytes.push(b & 0xff);
+    }
+    return bytes;
+  }
+
+  private executeBeep(stmt: Extract<Stmt, { kind: 'BeepStmt' }>): StmtResult {
+    const count = this.evalCoord(stmt.count);
+    const pitch = stmt.pitch ? this.evalCoord(stmt.pitch) : null;
+    const duration = stmt.duration ? this.evalCoord(stmt.duration) : null;
+    this.machine.sound.beep(count, pitch, duration);
+    return 'advance';
+  }
+
+  /** `WAIT` の待機残り時間（引数ありの場合）。実時刻ベース（`Date.now()`）で管理する。 */
+  private waitDeadline: number | null = null;
+
+  /**
+   * `WAIT [<数値>]`。引数省略時は ENTER キー（`INPUT`と同じ行確定）で再開する
+   * 無限待機、引数ありなら 1/64 秒単位の実時間待機。
+   *
+   * 【判断】 実時間待機は `Suspend.wait` を介してホスト（`ui/runtime.ts`）へ
+   * 伝えるが、現状の `Runtime.onFrame` は `ms` を見て実際に間隔を空ける実装には
+   * なっていない（次フレームを予約するだけ）。ここでは `Date.now()` を締切として
+   * 自前で管理し、ホスト側の対応が無くても実時間で正しく待つようにした
+   * （ホストが `ms` を活用する形へ改善しても壊れない設計）。
+   */
+  private executeWait(stmt: Extract<Stmt, { kind: 'WaitStmt' }>): StmtResult {
+    if (stmt.value === null) {
+      if (this.machine.keyboard.isLineReady()) {
+        this.machine.keyboard.takeLine();
+        return 'advance';
+      }
+      return { kind: 'wait', ms: -1 };
+    }
+    if (this.waitDeadline === null) {
+      const n = this.evalCoord(stmt.value);
+      const ms = (n * 1000) / 64;
+      this.waitDeadline = Date.now() + ms;
+    }
+    const remaining = this.waitDeadline - Date.now();
+    if (remaining <= 0) {
+      this.waitDeadline = null;
+      return 'advance';
+    }
+    return { kind: 'wait', ms: remaining };
+  }
+
+  // ── RUN / LIST / NEW / CONT（ダイレクトコマンド系） ─────
+
+  /** `RUN [<行番号>|"<label>"]`。プログラム中に書かれた RUN 文（再実行）。 */
+  private executeRun(stmt: Extract<Stmt, { kind: 'RunStmt' }>): StmtResult {
+    this.resetForRun();
+    this.pc = stmt.target ? this.resolveTarget(stmt.target) : { lineIndex: 0, stmtIndex: 0 };
+    return 'jumped';
+  }
+
+  /** `LIST [<行番号>|"<label>"]`。プログラムをテキストへ復元して画面表示する。 */
+  private executeList(stmt: Extract<Stmt, { kind: 'ListStmt' }>): StmtResult {
+    let startIdx = 0;
+    if (stmt.target) {
+      if (stmt.target.kind === 'LineNumberTarget') {
+        // 「存在しない行番号ならその次に大きい行番号から表示」（yaml notes）。
+        const n = stmt.target.value;
+        const idx = this.program.findIndex((l) => l.lineNumber !== null && l.lineNumber >= n);
+        if (idx === -1) {
+          throw new BasicError(ErrorCode.UNDEFINED_LINE, `LIST: 行番号 ${n} 以降の行がありません`);
+        }
+        startIdx = idx;
+      } else {
+        startIdx = this.resolveTarget(stmt.target).lineIndex;
+      }
+    }
+    for (let i = startIdx; i < this.program.length; i++) {
+      this.machine.screen.writeText(`${this.unparseLine(this.program[i])}\n`);
+    }
+    return 'advance';
+  }
+
+  /**
+   * `NEW`（単独）。メモリ上のプログラムと全変数を消去する（yaml summary）。
+   *
+   * 【判断】 このインタプリタはコンストラクタで受け取った `program` を
+   * 読み取り専用として実行する設計（`docs/design/phase1_architecture.md`）で、
+   * プログラムの動的編集・削除を担うエディタは Phase 3 で別途実装される想定
+   * （`AUTO`/`DELETE`/`RENUM` が本依頼のスコープ外なのと同じ理由）。
+   * そのためここでは「実行に関わる状態（変数・スタック・DATA位置・TRON）を
+   * NEW 相当にリセットし、実行を停止する」ところまでを行い、プログラム本体の
+   * 消去はエディタ側の責務として持ち越す。
+   */
+  private executeNew(): StmtResult {
+    this.variables.clear();
+    this.loopStack = [];
+    this.callStack = [];
+    this.dataPointer = 0;
+    this.tron = false;
+    this.contAvailable = false;
+    this.running = false;
+    return 'advance';
+  }
+
+  /**
+   * `CONT`（単独、文としての CONT）。
+   *
+   * 【判断】 実行中のプログラム文としてここへ到達する時点で、必ず
+   * `running === true`（＝停止していない）状態のため、`contAvailable` は
+   * 通常 false のままであり、この分岐は事実上常に ERROR(13) になる。
+   * 外部からの再開（BREAK/STOP/END後）は `Interpreter.cont()`（ジェネレータ、
+   * `Runtime.resumeCont()` から呼ばれる）が別途担うため、文としての CONT は
+   * 整合性チェックの意味合いが強い。
+   */
+  private executeContStmt(): StmtResult {
+    if (!this.contAvailable) {
+      throw new BasicError(ErrorCode.CONT_INVALID_STATE, 'CONT: 再開できる状態ではありません');
+    }
+    this.contAvailable = false;
+    return 'advance';
+  }
+
+  // ── LIST（プログラムをテキストへ復元） ──────────────────
+
+  private unparseJump(target: JumpTarget): string {
+    return target.kind === 'LineNumberTarget' ? String(target.value) : `*${target.name}`;
+  }
+
+  private unparseTarget(target: AssignTarget): string {
+    if (target.kind === 'VariableRef') return target.name;
+    return `${target.name}(${target.indices.map((e) => this.unparseExpr(e)).join(',')})`;
+  }
+
+  private unparseClause(clause: IfClause): string {
+    if (clause.kind === 'LineNumberTarget' || clause.kind === 'LabelTarget') {
+      return this.unparseJump(clause);
+    }
+    return this.unparseStmt(clause);
+  }
+
+  private static readonly WORD_BINARY_OPS = new Set(['MOD', 'AND', 'OR', 'XOR']);
+
+  private unparseExpr(e: Expr): string {
+    switch (e.kind) {
+      case 'NumberLiteral':
+        return e.raw;
+      case 'StringLiteral':
+        return `"${e.value}"`;
+      case 'VariableRef':
+        return e.name;
+      case 'ArrayRef':
+        return `${e.name}(${e.indices.map((x) => this.unparseExpr(x)).join(',')})`;
+      case 'FunctionCall':
+        return e.args.length > 0 ? `${e.name}(${e.args.map((a) => this.unparseExpr(a)).join(',')})` : e.name;
+      case 'UnaryOp': {
+        const operand = this.unparseExpr(e.operand);
+        return e.op === 'NOT' ? `NOT ${operand}` : `${e.op}${operand}`;
+      }
+      case 'BinaryOp': {
+        const opText = Interpreter.WORD_BINARY_OPS.has(e.op) ? ` ${e.op} ` : e.op;
+        return `${this.unparseExpr(e.left)}${opText}${this.unparseExpr(e.right)}`;
+      }
+      case 'UnsupportedExpr':
+        return e.name;
+    }
+  }
+
+  /**
+   * `Stmt` を BASIC ソーステキストへ戻す（`LIST` 用）。
+   *
+   * 【判断】 元の入力テキストの空白・大文字小文字・冗長な括弧を厳密に
+   * 再現するのではなく、「再度パースすれば同じ意味になる」ことを優先した
+   * 正規形で出力する。ただし `REM` の本文（`RemStmt.text`）と `DATA` の
+   * 各項目の生テキスト（`DataValue.text`）だけは、依頼指示のとおり
+   * 元の空白を含めて完全に保持する。
+   */
+  private unparseStmt(stmt: Stmt): string {
+    switch (stmt.kind) {
+      case 'UnsupportedStmt':
+        return stmt.name;
+      case 'LabelStmt':
+        return `*${stmt.name}`;
+      case 'LetStmt':
+        return stmt.assignments.map((a) => `${this.unparseTarget(a.target)}=${this.unparseExpr(a.value)}`).join(',');
+      case 'PrintStmt': {
+        let out = 'PRINT';
+        stmt.items.forEach((seg, i) => {
+          if (i === 0) out += ' ';
+          else out += seg.sep === ',' ? ',' : ';';
+          out +=
+            seg.value.kind === 'PrintUsing'
+              ? `USING ${this.unparseExpr(seg.value.format)}`
+              : this.unparseExpr(seg.value);
+        });
+        if (stmt.trailingSep) out += stmt.trailingSep;
+        return out;
+      }
+      case 'InputStmt': {
+        let out = 'INPUT ';
+        stmt.items.forEach((item, i) => {
+          if (i > 0) out += ',';
+          if (item.kind === 'InputPrompt') {
+            out += `${this.unparseExpr(item.message)}${item.quiet ? ';' : ','}`;
+          } else {
+            out += this.unparseTarget(item);
+          }
+        });
+        return out;
+      }
+      case 'IfLineStmt': {
+        let out = `IF ${this.unparseExpr(stmt.condition)} THEN ${this.unparseClause(stmt.thenClause)}`;
+        if (stmt.elseClause) out += ` ELSE ${this.unparseClause(stmt.elseClause)}`;
+        return out;
+      }
+      case 'IfStmt':
+        return `IF ${this.unparseExpr(stmt.condition)} THEN`;
+      case 'ElseStmt':
+        return 'ELSE';
+      case 'EndIfStmt':
+        return 'ENDIF';
+      case 'ForStmt': {
+        let out = `FOR ${stmt.variable.name}=${this.unparseExpr(stmt.from)} TO ${this.unparseExpr(stmt.to)}`;
+        if (stmt.step) out += ` STEP ${this.unparseExpr(stmt.step)}`;
+        return out;
+      }
+      case 'NextStmt':
+        return stmt.variable ? `NEXT ${stmt.variable.name}` : 'NEXT';
+      case 'WhileStmt':
+        return `WHILE ${this.unparseExpr(stmt.condition)}`;
+      case 'WendStmt':
+        return 'WEND';
+      case 'RepeatStmt':
+        return 'REPEAT';
+      case 'UntilStmt':
+        return `UNTIL ${this.unparseExpr(stmt.condition)}`;
+      case 'SwitchStmt':
+        return `SWITCH ${this.unparseExpr(stmt.expr)}`;
+      case 'CaseStmt':
+        return `CASE ${stmt.values.map((v) => this.unparseExpr(v)).join(',')}`;
+      case 'DefaultStmt':
+        return 'DEFAULT';
+      case 'EndSwitchStmt':
+        return 'ENDSWITCH';
+      case 'GotoStmt':
+        return `GOTO ${this.unparseJump(stmt.target)}`;
+      case 'GosubStmt':
+        return `GOSUB ${this.unparseJump(stmt.target)}`;
+      case 'ReturnStmt':
+        return 'RETURN';
+      case 'OnGotoStmt':
+        return `ON ${this.unparseExpr(stmt.selector)} GOTO ${stmt.targets.map((t) => this.unparseJump(t)).join(',')}`;
+      case 'OnGosubStmt':
+        return `ON ${this.unparseExpr(stmt.selector)} GOSUB ${stmt.targets.map((t) => this.unparseJump(t)).join(',')}`;
+      case 'EndStmt':
+        return 'END';
+      case 'StopStmt':
+        return 'STOP';
+      case 'RemStmt':
+        // 依頼指示：REM の本文を空白ごと完全保持する。
+        return `REM${stmt.text}`;
+      case 'DataStmt':
+        // 依頼指示：DATA の各項目の空白を保持する（DataValue.text が原文）。
+        return `DATA ${stmt.values.map((v) => (v.quoted ? `"${v.text}"` : v.text)).join(',')}`;
+      case 'ReadStmt':
+        return `READ ${stmt.targets.map((t) => this.unparseTarget(t)).join(',')}`;
+      case 'RestoreStmt':
+        return stmt.target ? `RESTORE ${this.unparseJump(stmt.target)}` : 'RESTORE';
+      case 'DimStmt':
+        return `DIM ${stmt.specs
+          .map((spec) => {
+            const dims = spec.dims.map((d) => this.unparseExpr(d)).join(',');
+            const len = spec.stringLength ? `*${this.unparseExpr(spec.stringLength)}` : '';
+            return `${spec.name}(${dims})${len}`;
+          })
+          .join(',')}`;
+      case 'EraseStmt':
+        return `ERASE ${stmt.targets.map((t) => this.unparseTarget(t)).join(',')}`;
+      case 'ClearStmt':
+        return 'CLEAR';
+      case 'ClsStmt':
+        return 'CLS';
+      case 'LocateStmt': {
+        const colText = stmt.col ? this.unparseExpr(stmt.col) : '';
+        const rowText = stmt.row ? this.unparseExpr(stmt.row) : '';
+        return rowText ? `LOCATE ${colText},${rowText}` : `LOCATE ${colText}`;
+      }
+      case 'GcursorStmt':
+        return `GCURSOR (${this.unparseExpr(stmt.x)},${this.unparseExpr(stmt.y)})`;
+      case 'PsetStmt':
+        return `PSET (${this.unparseExpr(stmt.x)},${this.unparseExpr(stmt.y)})${stmt.invert ? ',X' : ''}`;
+      case 'PresetStmt':
+        return `PRESET (${this.unparseExpr(stmt.x)},${this.unparseExpr(stmt.y)})`;
+      case 'LineStmt': {
+        let out = 'LINE ';
+        if (stmt.from) out += `(${this.unparseExpr(stmt.from.x)},${this.unparseExpr(stmt.from.y)})`;
+        out += `-(${this.unparseExpr(stmt.to.x)},${this.unparseExpr(stmt.to.y)})`;
+        const parts: string[] = [];
+        if (stmt.box !== null || stmt.lineStyle !== null || stmt.mode !== null) parts.push(stmt.mode ?? '');
+        if (stmt.box !== null || stmt.lineStyle !== null) {
+          parts.push(stmt.lineStyle ? this.unparseExpr(stmt.lineStyle) : '');
+        }
+        if (stmt.box !== null) parts.push(stmt.box);
+        if (parts.length > 0) out += `,${parts.join(',')}`;
+        return out;
+      }
+      case 'CircleStmt': {
+        let out = `CIRCLE (${this.unparseExpr(stmt.x)},${this.unparseExpr(stmt.y)}),${this.unparseExpr(stmt.radius)}`;
+        const fields = [stmt.startAngle, stmt.endAngle, stmt.aspect, stmt.mode, stmt.pattern];
+        let last = -1;
+        fields.forEach((f, i) => {
+          if (f !== null) last = i;
+        });
+        if (last >= 0) {
+          const parts: string[] = [];
+          if (last >= 0) parts.push(stmt.startAngle ? this.unparseExpr(stmt.startAngle) : '');
+          if (last >= 1) parts.push(stmt.endAngle ? this.unparseExpr(stmt.endAngle) : '');
+          if (last >= 2) parts.push(stmt.aspect ? this.unparseExpr(stmt.aspect) : '');
+          if (last >= 3) parts.push(stmt.mode ?? '');
+          if (last >= 4) parts.push(stmt.pattern ? this.unparseExpr(stmt.pattern) : '');
+          out += `,${parts.join(',')}`;
+        }
+        return out;
+      }
+      case 'PaintStmt':
+        return `PAINT (${this.unparseExpr(stmt.x)},${this.unparseExpr(stmt.y)}),${this.unparseExpr(stmt.pattern)}`;
+      case 'GprintStmt': {
+        let out = 'GPRINT';
+        stmt.items.forEach((seg, i) => {
+          if (i === 0) out += ' ';
+          else out += seg.sep === ',' ? ',' : ';';
+          out += this.unparseExpr(seg.value);
+        });
+        return out;
+      }
+      case 'BeepStmt': {
+        let out = `BEEP ${this.unparseExpr(stmt.count)}`;
+        if (stmt.pitch !== null || stmt.duration !== null) {
+          out += `,${stmt.pitch ? this.unparseExpr(stmt.pitch) : ''}`;
+        }
+        if (stmt.duration !== null) out += `,${this.unparseExpr(stmt.duration)}`;
+        return out;
+      }
+      case 'WaitStmt':
+        return stmt.value ? `WAIT ${this.unparseExpr(stmt.value)}` : 'WAIT';
+      case 'RandomizeStmt':
+        return 'RANDOMIZE';
+      case 'LcopyStmt':
+        return `LCOPY ${this.unparseExpr(stmt.fromLine)},${this.unparseExpr(stmt.toLine)},${this.unparseExpr(stmt.destLine)}`;
+      case 'RunStmt':
+        return stmt.target ? `RUN ${this.unparseJump(stmt.target)}` : 'RUN';
+      case 'ListStmt':
+        return stmt.target ? `LIST ${this.unparseJump(stmt.target)}` : 'LIST';
+      case 'NewStmt':
+        return 'NEW';
+      case 'AutoStmt': {
+        if (stmt.startLine === null && stmt.increment === null) return 'AUTO';
+        const s = stmt.startLine ? this.unparseExpr(stmt.startLine) : '';
+        return stmt.increment ? `AUTO ${s},${this.unparseExpr(stmt.increment)}` : `AUTO ${s}`;
+      }
+      case 'DeleteStmt': {
+        const s = stmt.start ? this.unparseExpr(stmt.start) : '';
+        const e = stmt.end ? this.unparseExpr(stmt.end) : '';
+        return `DELETE ${s}${stmt.hasDash ? '-' : ''}${e}`;
+      }
+      case 'RenumStmt': {
+        const parts = [stmt.oldLine, stmt.newLine, stmt.increment]
+          .map((f) => (f ? this.unparseExpr(f) : null))
+          .filter((v): v is string => v !== null);
+        return parts.length > 0 ? `RENUM ${parts.join(',')}` : 'RENUM';
+      }
+      case 'ContStmt':
+        return 'CONT';
+      case 'TronStmt':
+        return 'TRON';
+      case 'TroffStmt':
+        return 'TROFF';
+      case 'DegreeStmt':
+        return 'DEGREE';
+      case 'RadianStmt':
+        return 'RADIAN';
+      case 'GradStmt':
+        return 'GRAD';
+      case 'PassStmt':
+        return `PASS ${this.unparseExpr(stmt.password)}`;
+    }
+  }
+
+  private unparseLine(line: ProgramLine): string {
+    const body = line.statements.map((s) => this.unparseStmt(s)).join(':');
+    return line.lineNumber !== null ? `${line.lineNumber} ${body}` : body;
+  }
+
   // ── ディスパッチャ ──────────────────────────────────────
 
   private unimplementedName(stmt: Stmt): string {
@@ -704,6 +1408,8 @@ export class Interpreter {
 
       case 'PrintStmt':
         return this.executePrint(stmt);
+      case 'InputStmt':
+        return this.executeInput(stmt);
 
       case 'IfLineStmt':
         return this.executeIfLine(stmt);
@@ -725,6 +1431,14 @@ export class Interpreter {
         return this.executeRepeat();
       case 'UntilStmt':
         return this.executeUntil(stmt);
+
+      case 'SwitchStmt':
+        return this.executeSwitch(stmt);
+      case 'CaseStmt':
+      case 'DefaultStmt':
+        return this.executeCaseOrDefaultFallthrough();
+      case 'EndSwitchStmt':
+        return 'advance';
 
       case 'GotoStmt':
         return this.executeGoto(stmt);
@@ -796,6 +1510,39 @@ export class Interpreter {
       case 'RandomizeStmt':
         this.machine.randomize();
         return 'advance';
+
+      case 'GcursorStmt':
+        return this.executeGcursor(stmt);
+      case 'PsetStmt':
+        return this.executePset(stmt);
+      case 'PresetStmt':
+        return this.executePreset(stmt);
+      case 'LineStmt':
+        return this.executeLine(stmt);
+      case 'CircleStmt':
+        return this.executeCircle(stmt);
+      case 'PaintStmt':
+        return this.executePaint(stmt);
+      case 'GprintStmt':
+        return this.executeGprint(stmt);
+      case 'BeepStmt':
+        return this.executeBeep(stmt);
+      case 'WaitStmt':
+        return this.executeWait(stmt);
+      case 'LcopyStmt':
+        // 【判断】 プリンタ出力の実装はスコープ外。無言にせず「未対応」を記録し、
+        // プログラムは止めずに続行する（UnsupportedError と違い致命的ではない扱い）。
+        this.machine.reportUnimplemented('LCOPY');
+        return 'advance';
+
+      case 'RunStmt':
+        return this.executeRun(stmt);
+      case 'ListStmt':
+        return this.executeList(stmt);
+      case 'NewStmt':
+        return this.executeNew();
+      case 'ContStmt':
+        return this.executeContStmt();
 
       default:
         // INPUT・画面図形系・INKEY$・ダイレクトコマンド系など、今回のスコープ外の文。

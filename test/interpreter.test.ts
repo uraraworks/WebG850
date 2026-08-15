@@ -334,13 +334,16 @@ describe('エラー表示', () => {
 });
 
 describe('未実装の文は無言で飛ばさず停止・記録される', () => {
-  it('INPUT はスコープ外につき UnsupportedError 相当で停止し、reportUnimplemented に記録される', () => {
-    const { machine } = run('10 INPUT A');
+  it('AUTO はエディタ未実装のためスコープ外であり、UnsupportedError 相当で停止し、reportUnimplemented に記録される', () => {
+    // AUTO/DELETE/RENUM/PASS はエディタが無いと成立しない直接コマンドで、
+    // 依頼指示により今回のスコープ外（?UNSUPPORTED のまま）。INPUT は本担当で
+    // 実装済みのため、ここでの検証対象を差し替えた。
+    const { machine } = run('10 AUTO');
     const report = machine.getUnimplementedReport();
-    expect(report.some((r) => r.name === 'INPUT')).toBe(true);
+    expect(report.some((r) => r.name === 'AUTO')).toBe(true);
     const text = machine.screen.dumpAscii(0, 0, 144, 48);
     const cmp = new Machine();
-    cmp.screen.writeText('\n?UNSUPPORTED INPUT IN 10\n');
+    cmp.screen.writeText('\n?UNSUPPORTED AUTO IN 10\n');
     expect(text).toBe(cmp.screen.dumpAscii(0, 0, 144, 48));
   });
 

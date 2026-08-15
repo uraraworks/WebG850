@@ -128,9 +128,32 @@ export class Screen {
   private readonly dots: Uint8Array;
   private cursorCol = 0;
   private cursorRow = 0;
+  private gCursorX = 0;
+  private gCursorY = 0;
 
   constructor() {
     this.dots = new Uint8Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+  }
+
+  // ── グラフィックカーソル ─────────────────────────────────
+  //
+  // 【判断】 GCURSOR で移動する「グラフィックカーソル」の位置。マニュアルには
+  // GCURSOR と PSET/LINE/GPRINT の相互作用（描画のたびにカーソルが追従するか）の
+  // 記載が無いが、「LINE の始点省略時はグラフィックカーソル位置を使う」
+  // （docs/design 依頼指示）を成立させるには、PSET/LINE 等の描画後にカーソルが
+  // 追従する必要がある。同世代のポケコン BASIC で広く見られる「直前の描画点に
+  // 追従する」慣行を採用した（実際の代入は interpreter.ts 側の責務。ここは
+  // 位置を保持するだけの器）。
+
+  /** グラフィックカーソルの現在位置。 */
+  get graphicsCursor(): { x: number; y: number } {
+    return { x: this.gCursorX, y: this.gCursorY };
+  }
+
+  /** `GCURSOR (<x>,<y>)` 相当。描画系の文の実行後にも呼び出し側から追従させる想定。 */
+  gcursor(x: number, y: number): void {
+    this.gCursorX = Math.trunc(x);
+    this.gCursorY = Math.trunc(y);
   }
 
   // ── 基本ドット操作 ──────────────────────────────────────
@@ -227,11 +250,13 @@ export class Screen {
     this.cursorRow = Math.max(0, Math.min(TEXT_ROWS - 1, row));
   }
 
-  /** 画面消去＋カーソルを左上へ戻す。 */
+  /** 画面消去＋カーソルを左上へ戻す（テキストカーソル・グラフィックカーソルとも）。 */
   cls(): void {
     this.dots.fill(0);
     this.cursorCol = 0;
     this.cursorRow = 0;
+    this.gCursorX = 0;
+    this.gCursorY = 0;
   }
 
   /** 最下行での改行時に呼ぶ。テキスト1行分＝8ドットを上へ詰め、最下行をクリアする。 */

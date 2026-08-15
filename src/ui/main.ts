@@ -92,6 +92,12 @@ function main(): void {
   const program = parseProgram(DEMO_PROGRAM);
   const interpreter = new Interpreter(program, machine, BUILTINS);
 
+  // テストパターンは起動時のセルフチェック用に一瞬だけ表示する。BASIC の実行結果と
+  // 混ざって読めなくなるのを避けるため、プログラム実行前に画面を消す
+  // （依頼指示「プログラム実行前に画面を消すこと」）。
+  machine.screen.cls();
+  render();
+
   const runtime = new Runtime(interpreter, machine.keyboard, { render });
   runtime.start();
 }
