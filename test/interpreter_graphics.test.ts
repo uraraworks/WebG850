@@ -130,6 +130,35 @@ describe('GCURSOR / GPRINT', () => {
     expect(machine.screen.point(0, 0)).toBe(0);
     expect(machine.screen.point(0, 1)).toBe(1);
   });
+
+  it('末尾 ; はカーソル位置を保持する（notes通り）', () => {
+    const { machine } = run('10 GCURSOR (0,0)\n20 GPRINT 255;');
+    // 255は1バイト(1ドット幅)描くので、描画後のx座標は1。位置保持なのでyも0のまま。
+    expect(machine.screen.graphicsCursor).toEqual({ x: 1, y: 0 });
+  });
+
+  it('末尾 , は1ドット分の隙間を入れたうえで位置を保持する', () => {
+    const { machine } = run('10 GCURSOR (0,0)\n20 GPRINT 255,');
+    expect(machine.screen.graphicsCursor).toEqual({ x: 2, y: 0 });
+  });
+
+  it('末尾に区切りが無ければ位置を保持せず、次の行（8ドット下・左端）へ進む', () => {
+    const { machine } = run('10 GCURSOR (0,0)\n20 GPRINT 255');
+    expect(machine.screen.graphicsCursor).toEqual({ x: 0, y: 8 });
+  });
+
+  it('区切りごとの違いが実際の描画位置に反映される（末尾;の後にGPRINTを続けると連結、区切りなしの後は改行）', () => {
+    // 末尾;で連結: 2回目のGPRINTは1回目の直後（x=1,y=0）から描かれる。
+    const { machine: joined } = run('10 GCURSOR (0,0)\n20 GPRINT 255;\n30 GPRINT 255');
+    expect(joined.screen.point(0, 0)).toBe(1);
+    expect(joined.screen.point(1, 0)).toBe(1);
+
+    // 区切りなし: 2回目のGPRINTは改行後（y=8）の左端から描かれ、1回目の右隣(x=1,y=0)は光らない。
+    const { machine: newline } = run('10 GCURSOR (0,0)\n20 GPRINT 255\n30 GPRINT 255');
+    expect(newline.screen.point(0, 0)).toBe(1);
+    expect(newline.screen.point(1, 0)).toBe(0);
+    expect(newline.screen.point(0, 8)).toBe(1);
+  });
 });
 
 describe('BEEP', () => {

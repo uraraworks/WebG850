@@ -1129,24 +1129,34 @@ function parsePaintStmt(cursor: Cursor): PaintStmt {
  * `GPRINT <ビットパターン>[;<ビットパターン>…]` / `GPRINT <文字列>` / 引数なし。
  * 【判断】 format 本文は `;` 区切りのみだが、yaml notes に「,区切りで1ドット分の
  * 隙間」ともあるため、PRINT と同じ `,`/`;` どちらの区切りも受理する。
+ *
+ * `PrintStmt`（`parsePrintStmt`）と同じ設計で `trailingSep` を持たせる。
+ * 末尾の区切り記号は「次の項目の前置区切り」としては現れない（次の項目が無いため）
+ * ので、`items` の中には残らない。以前はこれを捨てていたため、インタプリタ側が
+ * 末尾 `;`（カーソル位置保持）と末尾 `,`（1ドット隙間して保持）を区別できず
+ * 常に位置保持扱いへ統一してしまっていた。
  */
 function parseGprintStmt(cursor: Cursor): GprintStmt {
   const startTok = cursor.next(); // GPRINT
   const items: GprintSegment[] = [];
   if (cursor.atEnd() || cursor.checkType('colon')) {
-    return { kind: 'GprintStmt', items, pos: startTok.pos };
+    return { kind: 'GprintStmt', items, trailingSep: null, pos: startTok.pos };
   }
   let pendingSep: ',' | ';' | null = null;
+  let trailingSep: ',' | ';' | null = null;
   for (;;) {
     const value = parseExpression(cursor);
     items.push({ sep: pendingSep, value });
     pendingSep = null;
+    trailingSep = null;
     if (cursor.checkType('comma')) {
       cursor.next();
       pendingSep = ',';
+      trailingSep = ',';
     } else if (cursor.checkType('semicolon')) {
       cursor.next();
       pendingSep = ';';
+      trailingSep = ';';
     } else {
       break;
     }
@@ -1154,7 +1164,7 @@ function parseGprintStmt(cursor: Cursor): GprintStmt {
       break;
     }
   }
-  return { kind: 'GprintStmt', items, pos: startTok.pos };
+  return { kind: 'GprintStmt', items, trailingSep, pos: startTok.pos };
 }
 
 /** `BEEP <回数>[,[<音程>][,<持続時間>]]`。音程・持続時間は個別に省略できる。 */

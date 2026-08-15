@@ -992,9 +992,17 @@ export class Interpreter {
    * 合わせて一貫性を取った。
    *
    * 【判断】 `,`区切りは「1ドット分の隙間」、末尾`;`は「カーソル位置保持」と
-   * notes にあるが、パーサ段階で末尾の区切り記号は保持されない設計になっている
-   * （`parser.ts` の `parseGprintStmt` 参照）ため、実行時に「行末で改行するか」を
-   * 判定できない。安全側として常にカーソル位置を保持する（末尾`;`相当）を採用した。
+   * notes にある。以前はパーサ段階（`parseGprintStmt`）で末尾の区切り記号が
+   * 保持されず、常にカーソル位置を保持する（末尾`;`相当）へ丸めてしまっていた。
+   * `GprintStmt.trailingSep` に区切りを持たせたことで区別できるようにした：
+   * - 末尾 `;` … カーソル位置を保持（notes通り）
+   * - 末尾 `,` … 項目間の `,` と同じ「1ドット分の隙間」を最後にも入れたうえで
+   *   位置を保持する（項目間の `,` と同じ意味を末尾にも一貫して適用しただけで、
+   *   notes に明記された事実ではない）
+   * - 区切りなし（通常の行末） … 位置を保持しない。`PRINT` の改行相当として
+   *   左端（x=0）へ戻し、1行分（8ドット、テキスト1行の高さ）下げる。
+   *   引数無し GPRINT が「1ドットだけ」下げるのとは意図的に区別している
+   *   （notes が両者を別項目として書き分けているため）。
    */
   private executeGprint(stmt: Extract<Stmt, { kind: 'GprintStmt' }>): StmtResult {
     let { x, y } = this.machine.screen.graphicsCursor;
@@ -1015,7 +1023,13 @@ export class Interpreter {
         x += 1;
       }
     }
-    this.machine.screen.gcursor(x, y);
+    if (stmt.trailingSep === ',') {
+      this.machine.screen.gcursor(x + 1, y);
+    } else if (stmt.trailingSep === ';') {
+      this.machine.screen.gcursor(x, y);
+    } else {
+      this.machine.screen.gcursor(0, y + 8);
+    }
     return 'advance';
   }
 
@@ -1355,6 +1369,7 @@ export class Interpreter {
           else out += seg.sep === ',' ? ',' : ';';
           out += this.unparseExpr(seg.value);
         });
+        if (stmt.trailingSep) out += stmt.trailingSep;
         return out;
       }
       case 'BeepStmt': {

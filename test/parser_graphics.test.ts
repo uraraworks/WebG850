@@ -166,6 +166,23 @@ describe('GPRINT', () => {
     const [stmt] = parseLine('GPRINT') as [GprintStmt];
     expect(stmt.items).toHaveLength(0);
   });
+
+  it('末尾に区切り記号が無ければ trailingSep は null', () => {
+    const [stmt] = parseLine('GPRINT &HFF') as [GprintStmt];
+    expect(stmt.trailingSep).toBeNull();
+  });
+
+  it('末尾 ; は trailingSep に保持される（カーソル位置保持の合図）', () => {
+    const [stmt] = parseLine('GPRINT &HFF;') as [GprintStmt];
+    expect(stmt.items).toHaveLength(1);
+    expect(stmt.trailingSep).toBe(';');
+  });
+
+  it('末尾 , は trailingSep に保持される（1ドット隙間の合図）', () => {
+    const [stmt] = parseLine('GPRINT &HFF,') as [GprintStmt];
+    expect(stmt.items).toHaveLength(1);
+    expect(stmt.trailingSep).toBe(',');
+  });
 });
 
 describe('BEEP / WAIT / RANDOMIZE / CLS / LCOPY', () => {

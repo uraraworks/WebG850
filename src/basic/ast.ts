@@ -514,10 +514,15 @@ export interface GprintSegment {
  * 2形態とも同じ `items`（Expr のリスト）で表現できる（文字列も Expr の
  * StringLiteral として扱えるため）。引数なしは `items` が空配列（実行時は
  * カーソルを1ドット下げるだけ、docs/spec の notes 参照）。
+ *
+ * `trailingSep` は最後の項目の直後に置かれた区切り記号（`PrintStmt` と同じ設計）。
+ * `,`/`;` それぞれの意味は notes（`,`＝1ドット隙間、`;`＝カーソル位置保持）参照。
+ * これが無いと末尾の区切りが `items` のどこにも残らず消えてしまう。
  */
 export interface GprintStmt extends NodeBase {
   readonly kind: 'GprintStmt';
   readonly items: readonly GprintSegment[];
+  readonly trailingSep: ',' | ';' | null;
 }
 
 /** `BEEP <回数>[,[<音程>][,<持続時間>]]`。音程・持続時間は個別に省略できる。 */
