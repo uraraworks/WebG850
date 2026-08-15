@@ -20,7 +20,8 @@ export type UncertainId =
   | 'EXPONENTIAL_SWITCH_THRESHOLD'
   | 'EXPONENT_FORMAT'
   | 'POSITIVE_LEADING_SPACE'
-  | 'RANDOM_PRNG';
+  | 'RANDOM_PRNG'
+  | 'REC_RESERVED_VAR_ASSIGNMENT';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -219,3 +220,34 @@ export class LinearCongruentialGenerator {
 export function seedFromCurrentTime(): number {
   return Date.now() >>> 0;
 }
+
+// ─────────────────────────────────────────────────────────────
+// REC の予約変数 Y・Z への割り当て
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `REC(距離,角度)` 実行後、直交座標の x 成分・y 成分をそれぞれ予約変数 Y・Z の
+ * どちらへ割り当てるか。
+ *
+ * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` の REC の notes に
+ * 詳しいとおり、本文（独語・英語とも同内容）を字義通り読めば「Y=x軸からの距離
+ * (=y座標)、Z=y軸からの距離(=x座標)」となるはずだが、英語版の実行例
+ * `REC(12,30)→10.39230485` に付いた編集者注記「(x≈10.4)」「(y=6, PRINT Z)」は
+ * 逆に「関数値(=x成分)がY、Zがy成分」と読める内容になっており、両版で食い違う
+ * （独語版には検証できる数値例が無い）。
+ *
+ * POL は本文と実行例が一致する（Y=r, Z=θ）のに REC だけ食い違うのは不自然で、
+ * 実測でしか確定できない。ここでは **実行例（動く方の記述）を優先** し、
+ * 「関数値と同じ x 成分を Y へ、y 成分を Z へ」割り当てる解釈を暫定採用する。
+ * 本文の文言どおりに実装するより「サンプルコードをそのまま動かしたときに
+ * 実行例の出力(Y≈10.4, Z=6)と一致する」実装の方が、投稿作品との整合性を
+ * 壊しにくいと判断した。
+ *
+ * 予約変数 Y・Z への実際の代入は本モジュール（functions/）の責務外
+ * （インタプリタ側が BuiltinContext 経由の戻り値だけでなく、この定数を見て
+ * 代入先を決める想定）。REC 関数自体は呼び出し時に `markUncertainUsed`
+ * でこの不確定仕様を踏んだことだけを記録する。
+ *
+ * 参照: docs/spec/basic_commands.yaml の REC エントリの notes
+ */
+export const REC_ASSIGNS_X_TO_Y = true;
