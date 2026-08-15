@@ -1,0 +1,221 @@
+// 不確定仕様の集約。
+//
+// マニュアル（docs/仕様_BASIC命令セット.md）や実行例からは確定できず、
+// 「もっともらしい値」を暫定採用している項目をここに1ファイルへ集める。
+// 親 CLAUDE.md の方針（「不確定な仕様は、根拠を明示して1つ選び、後で1箇所直せば
+// 変わる形にする」「間違いが見えないと改善のループが回らない」）に対応する部分。
+//
+// 各定数は「暫定でこう決めた理由」と「参照すべき仕様書の場所」をコメントで持つ。
+// 差し替えるときはこのファイルの値と、必要なら根拠コメントを更新すればよい。
+
+/**
+ * 実行時に踏んだ不確定仕様の識別子。
+ * デバッグパネル（別担当実装）はこれを一覧表示する想定。
+ */
+export type UncertainId =
+  | 'VARNAME_SIGNIFICANT_CHARS'
+  | 'IMPLICIT_ARRAY_SIZE'
+  | 'FOR_CHECKS_BEFORE_BODY'
+  | 'ANGLE_MODE_RESET_ON_RUN'
+  | 'EXPONENTIAL_SWITCH_THRESHOLD'
+  | 'EXPONENT_FORMAT'
+  | 'POSITIVE_LEADING_SPACE'
+  | 'RANDOM_PRNG';
+
+/** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
+const usedUncertainIds = new Set<UncertainId>();
+
+/**
+ * 不確定仕様を実際に踏んだことを記録する。
+ * 各実装箇所（number.ts、将来の parser/interpreter 等）は、当該の不確定仕様を
+ * 使用する分岐を通ったタイミングでこれを呼ぶこと。
+ */
+export function markUncertainUsed(id: UncertainId): void {
+  usedUncertainIds.add(id);
+}
+
+/** これまでに記録された不確定仕様の一覧を返す（デバッグパネル向け）。 */
+export function getUsedUncertainIds(): UncertainId[] {
+  return Array.from(usedUncertainIds);
+}
+
+/** 記録をクリアする（テスト用。CLEAR/NEW 相当のタイミングで呼ぶことも想定）。 */
+export function resetUncertainUsage(): void {
+  usedUncertainIds.clear();
+}
+
+// ─────────────────────────────────────────────────────────────
+// 変数名の有効文字数
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 変数名の有効文字数。`null` は「無制限（全文字が区別される）」を表す。
+ *
+ * 【推測で決めた点・理由】 実機は先頭2文字のみ有効（`ABC` と `ABD` が同一変数）という
+ * 制約がある可能性が高いが、マニュアルに記載が無いため確定していない。
+ * 2文字制限を入れて誤って別変数を潰す方が、入れずに動く方より被害が大きいので、
+ * 暫定で「全文字有効（無制限）」を採用する。
+ *
+ * 参照: docs/design/phase1_grammar.md「変数名」節
+ */
+export const VARNAME_SIGNIFICANT_CHARS: number | null = null;
+
+// ─────────────────────────────────────────────────────────────
+// DIM 省略時の配列サイズ
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `DIM` していない配列を参照したときの暗黙の要素数（添字 0〜10 の 11 要素）。
+ *
+ * 【推測で決めた点・理由】 マニュアルに記載が無い。多くの BASIC 実装が
+ * 0〜10 の 11 要素を暗黙に確保する慣行に従った。
+ *
+ * 参照: docs/design/phase1_runtime.md「変数」節
+ */
+export const IMPLICIT_ARRAY_SIZE = 11;
+
+// ─────────────────────────────────────────────────────────────
+// FOR の判定順序
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `true` なら `FOR` はループ本体に入る前に終了条件を判定する
+ * （`FOR I=1 TO 0` は本体を1回も実行しない＝前判定）。
+ *
+ * 【推測で決めた点・理由】 `FOR I=1 TO 0` が本体を実行するかはマニュアルに記載が無い。
+ * 判定を後に置く（後判定）実装だと `FOR I=1 TO 0` が配列外アクセスを起こす作品が
+ * 壊れるため、前判定の方が「壊れない側」として暫定採用する。
+ *
+ * 参照: docs/design/phase1_runtime.md「FOR の判定順序」節
+ */
+export const FOR_CHECKS_BEFORE_BODY = true;
+
+// ─────────────────────────────────────────────────────────────
+// RUN 時の角度モード
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `true` なら `RUN` で角度モード（DEGREE/RADIAN/GRAD）を既定（DEGREE）へ戻す。
+ * `false` なら直前のモードを維持する。
+ *
+ * 【推測で決めた点・理由】 マニュアルに記載が無い。リセットする実装だと、
+ * 直前に `RADIAN` を打った利用者の意図が消えてしまうため、維持（`false`）を
+ * 暫定採用する。
+ *
+ * 参照: docs/design/phase1_runtime.md「角度モード」節
+ */
+export const ANGLE_MODE_RESET_ON_RUN = false;
+
+// ─────────────────────────────────────────────────────────────
+// 固定小数点 ⇔ 指数表記の切替閾値・指数の書式
+// （旧 src/basic/number.ts から移設）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 整数部の桁数がこれを超えたら指数表記に切り替える閾値。
+ *
+ * 【推測で決めた点・理由】 マニュアルに実行例が無く未確定
+ * （`docs/spec/number_display.md`「まだ確定していない規則」）。仮数の有効桁数
+ * （`number.ts` の `MANTISSA_DIGITS` = 10）と同じ値を採用した。値を変えるときは
+ * `MANTISSA_DIGITS` との対応も見直すこと（循環 import を避けるためここでは
+ * 直値として持ち、自動連動はさせていない）。
+ *
+ * 参照: docs/spec/number_display.md「まだ確定していない規則」
+ */
+export const EXPONENTIAL_SWITCH_INTEGER_DIGITS = 10;
+
+/**
+ * 絶対値がこの値未満なら指数表記に切り替える閾値。
+ *
+ * 【推測で決めた点・理由】 マニュアルに実行例が無く未確定。同世代の MS-BASIC 系
+ * ポケコン・電卓で広く見られる「0.01 未満を E 表記にする」慣習からの類推であり、
+ * 実機の閾値そのものではない。
+ *
+ * 参照: docs/spec/number_display.md「まだ確定していない規則」
+ */
+export const EXPONENTIAL_SWITCH_MIN_ABS = 0.01;
+
+/**
+ * 指数表記部分（"1.234567891E+15" の "E+15" 側）を組み立てる。
+ *
+ * 【推測で決めた点・理由】 実機の PRINT 出力書式（指数の符号有無・桁数、
+ * 区切り文字 "E" の有無）はマニュアルからは確定できなかった。同世代の
+ * MS-BASIC 系ポケコン・電卓で広く使われる「E+符号+2桁」という慣習を採用した。
+ * `number.ts` の `EXPONENT_MAX = 99` なので2桁で収まる。
+ *
+ * 参照: docs/spec/number_display.md「まだ確定していない規則」
+ */
+export function formatExponent(exponent: number): string {
+  markUncertainUsed('EXPONENT_FORMAT');
+  const expSign = exponent < 0 ? '-' : '+';
+  const expDigits = String(Math.abs(exponent)).padStart(2, '0');
+  return `E${expSign}${expDigits}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 正数の先頭スペース
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `true` なら正数の表示先頭にスペースを1つ出す（符号の位置を負数の "-" と揃える）。
+ *
+ * 【推測で決めた点・理由】 マニュアルの実行例は原文の組版で桁が揃えられており、
+ * 先頭スペースの有無そのものを実行例から確定できない。同世代 BASIC の慣行
+ * （符号位置を揃えて桁を読みやすくする）から「出す」を暫定採用する。
+ *
+ * 参照: docs/spec/number_display.md「まだ確定していない規則」
+ */
+export const POSITIVE_LEADING_SPACE = true;
+
+// ─────────────────────────────────────────────────────────────
+// 乱数（RND / RANDOMIZE）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 乱数生成に使う線形合同法の定数（Numerical Recipes 系の値）。
+ *
+ * 【推測で決めた点・理由】 実機の乱数系列とは一致させられない
+ * （`docs/spec` の `RANDOMIZE` は不確定3件のうちの1つ）。系列そのものより
+ * 「周期が十分長く偏りが小さいこと」を優先し、広く知られた LCG 定数を
+ * 決め打ちで採用した。実機系列の実測ができた場合はこの節を丸ごと差し替える。
+ *
+ * 参照: docs/design/phase1_runtime.md「乱数」節
+ */
+export const RANDOM_LCG_MULTIPLIER = 1664525;
+/** 線形合同法の増分。上記と同じ根拠。 */
+export const RANDOM_LCG_INCREMENT = 1013904223;
+/** 線形合同法の法（2^32）。上記と同じ根拠。 */
+export const RANDOM_LCG_MODULUS = 2 ** 32;
+
+/**
+ * 線形合同法による乱数生成器。`RND` 実装が内部状態として持つ想定。
+ *
+ * 参照: docs/design/phase1_runtime.md「乱数」節
+ */
+export class LinearCongruentialGenerator {
+  private state: number;
+
+  constructor(seed: number) {
+    this.state = seed >>> 0;
+    markUncertainUsed('RANDOM_PRNG');
+  }
+
+  /** 次の乱数を [0, 1) の範囲で返す。 */
+  next(): number {
+    this.state = (Math.imul(this.state, RANDOM_LCG_MULTIPLIER) + RANDOM_LCG_INCREMENT) >>> 0;
+    return this.state / RANDOM_LCG_MODULUS;
+  }
+}
+
+/**
+ * `RANDOMIZE`（引数なし）で使う既定シード。現在時刻から与える。
+ *
+ * 【推測で決めた点・理由】 マニュアルに `RANDOMIZE` 引数なし時の挙動の記載が無い。
+ * 「実行のたびに違う系列になる」という一般的な BASIC の慣行に従い、現在時刻を
+ * シード源とした。
+ *
+ * 参照: docs/design/phase1_runtime.md「乱数」節
+ */
+export function seedFromCurrentTime(): number {
+  return Date.now() >>> 0;
+}

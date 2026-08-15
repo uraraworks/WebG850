@@ -109,7 +109,7 @@ commands:
     verified_by: manual_3rd_party
     verifiable_by_measurement: true
     source: manual_de p.183
-    notes: 実行例 AHT 0.7 → 0.867300527 は artanh(0.7)=0.5*ln(1.7/0.3)≈0.8673005 と一致し、逆双曲線正接であると確認できる。
+    notes: 実行例 AHT 0.7 → 0.867300527 は artanh(0.7)=0.5*ln(1.7/0.3)≈0.8673005 と一致し、逆双曲線正接であると確認できる。なお表示桁数について、docs/spec/number_display.md の導出のとおり実機は有効数字10桁で表示するため正しくは 0.8673005277 であり、マニュアルの 0.867300527 は末尾の 7 が1つ脱字したもの（同じ数字が2つ続く箇所は組版・OCRで落ちやすい）。詳細は docs/spec/number_display.md を参照。
   - name: AND
     aliases: []
     kind: operator

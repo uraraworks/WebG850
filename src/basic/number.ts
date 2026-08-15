@@ -8,6 +8,13 @@
 // 名前付き定数として export する。
 
 import { BasicError, ErrorCode } from './errors.js';
+import {
+  EXPONENTIAL_SWITCH_INTEGER_DIGITS,
+  EXPONENTIAL_SWITCH_MIN_ABS,
+  formatExponent,
+  markUncertainUsed,
+  POSITIVE_LEADING_SPACE,
+} from './uncertain.js';
 
 /** 仮数部の有効桁数（実機は BCD 10 桁）。 */
 export const MANTISSA_DIGITS = 10;
@@ -49,21 +56,6 @@ export function roundToMantissa(x: number): number {
   return result;
 }
 
-/**
- * 指数表記部分（"1.234567891E+15" の "E+15" 側）を組み立てる。
- *
- * 【推測で決めた点・理由】 実機の PRINT 出力書式（指数の符号有無・桁数、
- * 区切り文字 "E" の有無）はマニュアル（docs/仕様_BASIC命令セット.md）からは
- * 確定できなかった。同世代の MS-BASIC 系ポケコン・電卓で広く使われる
- * 「E+符号+2桁」という慣習を採用した。EXPONENT_MAX=99 なので2桁で収まる。
- * 実機入手後に画面表示と突き合わせて要検証（この関数を直せば差し替えられる）。
- */
-function formatExponent(exponent: number): string {
-  const expSign = exponent < 0 ? '-' : '+';
-  const expDigits = String(Math.abs(exponent)).padStart(2, '0');
-  return `E${expSign}${expDigits}`;
-}
-
 /** 仮数部の文字列化。末尾の余分な 0 と、整数になった場合の小数点を落とす。 */
 function trimTrailingZeros(s: string): string {
   if (!s.includes('.')) {
@@ -92,8 +84,16 @@ function formatFixed(abs: number): string {
     return String(abs);
   }
   // 有効数字 MANTISSA_DIGITS 桁を保つよう小数点以下の桁数を計算する。
+  //
+  // 【バグ修正】 以前は `Math.max(1, integerDigits)` としていたため、絶対値が
+  // 1 未満（integerDigits <= 0）の値で小数桁数が 1 桁少なく計算され、有効数字が
+  // 9 桁しか出なかった（例: AHT(0.7) が 0.867300528 になり、正しい
+  // 0.8673005277 にならない）。`toPrecision(10)` の意味論どおり「最初の非ゼロ
+  // 数字から 10 桁」を数えるには、integerDigits をそのまま（0 以下も含めて）
+  // 引けばよい。docs/spec/number_display.md「4. 1 未満の値で、先頭の 0 は
+  // 桁を消費しない」を参照。
   const integerDigits = computeExponent(abs) + 1;
-  const fractionDigits = Math.max(0, MANTISSA_DIGITS - Math.max(1, integerDigits));
+  const fractionDigits = Math.max(0, MANTISSA_DIGITS - integerDigits);
   const s = abs.toFixed(fractionDigits);
   return trimTrailingZeros(s);
 }
@@ -118,23 +118,27 @@ function formatExponential(abs: number, exponentHint: number): string {
  * - 整数は小数点を出さない（依頼指示）
  * - 桁あふれ（10桁の仮数で固定小数点表記できない）は指数表記にする（依頼指示）
  *
- * 【推測で決めた点・理由】 固定小数点 ⇔ 指数表記の切り替え閾値は
- * マニュアルに記載が無かった。ここでは
- * 「整数部が MANTISSA_DIGITS(10) 桁を超える」または「絶対値が 0.01 未満」
- * を指数表記の条件とした。これは同世代の MS-BASIC 系ポケコン・電卓で
- * 広く見られる慣習（有効桁数に対して大きすぎる/小さすぎる値をE表記にする）
- * からの類推であり、実機の閾値そのものではない。実機入手後に要検証。
+ * 固定小数点 ⇔ 指数表記の切替閾値・指数の書式・正数の先頭スペースは
+ * いずれも不確定仕様。`src/basic/uncertain.ts` に集約してあるので、
+ * 差し替えるときはそちらを直せばよい（docs/spec/number_display.md
+ * 「まだ確定していない規則」）。
  */
 export function formatNumber(x: number): string {
   const rounded = roundToMantissa(x);
   if (rounded === 0) {
-    return ' 0';
+    return POSITIVE_LEADING_SPACE ? ' 0' : '0';
   }
-  const sign = rounded < 0 ? '-' : ' ';
+  markUncertainUsed('POSITIVE_LEADING_SPACE');
+  const positiveSign = POSITIVE_LEADING_SPACE ? ' ' : '';
+  const sign = rounded < 0 ? '-' : positiveSign;
   const abs = Math.abs(rounded);
   const exponent = computeExponent(abs);
 
-  const useExponential = exponent >= MANTISSA_DIGITS || exponent < -2;
+  const useExponential =
+    exponent >= EXPONENTIAL_SWITCH_INTEGER_DIGITS || abs < EXPONENTIAL_SWITCH_MIN_ABS;
+  if (useExponential) {
+    markUncertainUsed('EXPONENTIAL_SWITCH_THRESHOLD');
+  }
   const body = useExponential ? formatExponential(abs, exponent) : formatFixed(abs);
   return sign + body;
 }

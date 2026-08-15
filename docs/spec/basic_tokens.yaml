@@ -80,6 +80,9 @@ tokens:
     name: "OUT"
   - code: 0x48
     name: "PIOSET"
+  # name はトークン表の記載どおり "POIPUT" のまま変更しない（正典はトークン表であり、
+  # 勝手に直すと出所が分からなくなるため）。ただし docs/仕様_BASIC命令セット.md 209行目の
+  # とおり、本文・目次では一貫して "PIOPUT" であり、トークン表側の誤記と見られる。
   - code: 0x49
     name: "POIPUT"
   - code: 0x4A
