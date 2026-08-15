@@ -24,6 +24,12 @@ export interface Token {
   readonly stringValue?: string;
   /** ソース中の開始位置（0始まり）。エラー表示・LIST 再構成用。 */
   readonly pos: number;
+  /**
+   * ソース中の終了位置（このトークンの直後、半開区間の終端）。
+   * `pos`〜`end` を元テキストからそのまま切り出せば、トークン化で失われる
+   * 空白等を復元できる（DATA / REM の本文再構成に使う。依頼元: バグ修正指示）。
+   */
+  readonly end: number;
 }
 
 /**

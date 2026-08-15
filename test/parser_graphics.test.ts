@@ -21,7 +21,7 @@ import { tokenize } from '../src/basic/tokenizer.js';
 
 /** 1行分のソースを最後まで消費する形で文リストにパースする（テスト便宜）。 */
 function parseLine(source: string): Stmt[] {
-  const cursor = new Cursor(tokenize(source));
+  const cursor = new Cursor(tokenize(source), source);
   return parseStatementList(cursor);
 }
 

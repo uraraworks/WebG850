@@ -100,13 +100,26 @@ import type { Token, TokenType } from './token.js';
  * トークン列の読み取り位置を持つ共通カーソル。式パーサ・文パーサの両方が
  * これを介してトークンを読み進める。comment トークンは構文上意味を持たない
  * （行末までの残りを丸呑みしているだけ）ため、ここで除外しておく。
+ *
+ * `source` は行番号を除いた元テキスト（tokenizer.ts の ProgramLine.text /
+ * tokenize() に渡した文字列そのもの）。トークンの pos/end はこの文字列上の
+ * 位置を指すため、DATA の項目や REM の本文のようにトークンを再結合すると
+ * 空白が失われる箇所は、ここから該当区間をそのまま切り出して復元する
+ * （バグ修正: DATA/REM の空白欠落）。
  */
 export class Cursor {
   private readonly tokens: readonly Token[];
+  private readonly source: string;
   private pos = 0;
 
-  constructor(tokens: readonly Token[]) {
+  constructor(tokens: readonly Token[], source = '') {
     this.tokens = tokens.filter((t) => t.type !== 'comment');
+    this.source = source;
+  }
+
+  /** `start`（省略時は `end` も省略で文字列末尾まで）の区間を元テキストから切り出す。 */
+  sliceSource(start: number, end?: number): string {
+    return this.source.slice(start, end);
   }
 
   /** `offset` 個先のトークンを覗く（消費しない）。範囲外は undefined。 */
@@ -756,7 +769,23 @@ function parseNextStmt(cursor: Cursor): NextStmt {
   return { kind: 'NextStmt', variable, pos: startTok.pos };
 }
 
-/** `DATA` 1項目。式パーサへは渡さず、次の `,`/`:`/行末までの生テキストとして読む。 */
+/**
+ * `DATA` 1項目。式パーサへは渡さず、次の `,`/`:`/行末までの生テキストとして読む。
+ *
+ * 【修正】 かつてはトークンの `text` を連結していたため、トークン間の空白
+ * （"DATA HELLO WORLD" のような区切り無しの複数語）が失われていた
+ * （バグ修正指示・再現確認済み）。トークンは元テキスト上の開始・終了位置
+ * （pos/end）を持つので、項目の先頭トークンの pos から末尾トークンの end
+ * までを元テキストからそのまま切り出す方式に変えた。
+ *
+ * 【推測で決めた点】 項目前後の空白（例: "DATA A,B , C" の " C" の先頭空白）
+ * を trim するかどうかは basic_commands.yaml に記載が無い。この実装では
+ * 明示的な trim を行っていないが、トークナイザが空白そのものをトークンに
+ * しない（先頭・末尾の空白はどのトークンの pos/end にも含まれない）ため、
+ * 結果として項目前後の空白は自然に落ち、項目内部の空白（複数語の間）だけが
+ * 保持される。これは多くの古典 BASIC の DATA 文の慣行（項目の前後の空白は
+ * 無視し、値の中身の空白は保持する）に倣った挙動になっている。
+ */
 function parseDataValue(cursor: Cursor): DataValue {
   const first = cursor.peek();
   if (first === undefined) {
@@ -767,20 +796,16 @@ function parseDataValue(cursor: Cursor): DataValue {
     return { text: first.stringValue ?? '', quoted: true, pos: first.pos };
   }
   const startPos = first.pos;
-  let text = '';
+  let endPos = first.pos;
   while (!cursor.atEnd() && !cursor.checkType('comma') && !cursor.checkType('colon')) {
-    text += cursor.next().text;
+    endPos = cursor.next().end;
   }
+  const text = cursor.sliceSource(startPos, endPos);
   return { text, quoted: false, pos: startPos };
 }
 
 /**
  * `DATA <値のリスト>`。
- * 【判断】 トークナイザは DATA 専用のモードを持たない（依頼で tokenizer.ts に
- * 手を入れないため）。このため各項目はトークン列を連結した生テキストになり、
- * トークン間の空白（"DATA A B" のような区切り無しの複数語）は失われる。
- * 数値・識別子・引用符付き文字列の各1項目は正しく再現できるが、
- * 空白区切りの生テキストは不完全であることを申し送る。
  */
 function parseDataStmt(cursor: Cursor): DataStmt {
   const startTok = cursor.next(); // DATA
@@ -1440,8 +1465,16 @@ export function parseStatement(cursor: Cursor): Stmt {
         return node;
       }
       case 'REM': {
+        // 【修正】 REM の本文は comment トークンとして正しく捕捉されていたが、
+        // Cursor が comment トークンを構文上除外する設計のため RemStmt が
+        // 本文を一切保持していなかった（バグ修正指示・再現確認済み）。
+        // REM キーワード直後（t.end）から行末までを元テキストからそのまま
+        // 切り出す（tokenizer.ts の REM 処理も同区間を素通しで comment
+        // トークン化しているだけなので、この区間はトークン化の影響を受けず
+        // 空白・コロンとも元のまま残る）。
         const t = cursor.next();
-        const node: RemStmt = { kind: 'RemStmt', pos: t.pos };
+        const text = cursor.sliceSource(t.end);
+        const node: RemStmt = { kind: 'RemStmt', text, pos: t.pos };
         return node;
       }
       case 'DATA':
@@ -1553,7 +1586,7 @@ export function parseStatementList(cursor: Cursor): Stmt[] {
  */
 export function parseProgram(source: string): ProgramLine[] {
   return tokenizeProgram(source).map((line) => {
-    const cursor = new Cursor(line.tokens);
+    const cursor = new Cursor(line.tokens, line.text);
     const statements = parseStatementList(cursor);
     return { lineNumber: line.lineNumber, statements };
   });

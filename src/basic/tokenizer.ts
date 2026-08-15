@@ -67,7 +67,7 @@ function readNumber(text: string, start: number): ReadResult {
   }
   const raw = text.slice(start, pos);
   return {
-    token: { type: 'number', text: raw, numberValue: Number(raw), pos: start },
+    token: { type: 'number', text: raw, numberValue: Number(raw), pos: start, end: pos },
     next: pos,
   };
 }
@@ -83,7 +83,7 @@ function readHexNumber(text: string, start: number): ReadResult {
     throw new BasicError(ErrorCode.SYNTAX, `16進数リテラルの桁がありません: "${raw}"`);
   }
   return {
-    token: { type: 'number', text: raw, numberValue: parseInt(digits, 16), pos: start },
+    token: { type: 'number', text: raw, numberValue: parseInt(digits, 16), pos: start, end: pos },
     next: pos,
   };
 }
@@ -108,7 +108,7 @@ function readString(text: string, start: number): ReadResult {
   }
   const raw = text.slice(start, pos);
   return {
-    token: { type: 'string', text: raw, stringValue: content, pos: start },
+    token: { type: 'string', text: raw, stringValue: content, pos: start, end: pos },
     next: pos,
   };
 }
@@ -119,7 +119,7 @@ function readIdentifier(text: string, start: number): ReadResult {
   while (isIdentifierChar(text[pos])) pos++;
   if (text[pos] === '$') pos++;
   const raw = text.slice(start, pos);
-  return { token: { type: 'identifier', text: raw, pos: start }, next: pos };
+  return { token: { type: 'identifier', text: raw, pos: start, end: pos }, next: pos };
 }
 
 const TWO_CHAR_OPERATORS = ['<=', '>=', '<>'];
@@ -143,7 +143,7 @@ export function tokenize(source: string): Token[] {
     }
 
     if (ch === "'") {
-      tokens.push({ type: 'comment', text: source.slice(pos), pos });
+      tokens.push({ type: 'comment', text: source.slice(pos), pos, end: len });
       break;
     }
 
@@ -171,12 +171,12 @@ export function tokenize(source: string): Token[] {
     if (isLetter(ch)) {
       const kw = matchKeyword(source, pos);
       if (kw !== null) {
-        tokens.push({ type: 'keyword', text: kw, pos });
+        tokens.push({ type: 'keyword', text: kw, pos, end: pos + kw.length });
         pos += kw.length;
         if (kw === 'REM') {
           const rest = source.slice(pos);
           if (rest.length > 0) {
-            tokens.push({ type: 'comment', text: rest, pos });
+            tokens.push({ type: 'comment', text: rest, pos, end: len });
           }
           pos = len;
         }
@@ -189,47 +189,47 @@ export function tokenize(source: string): Token[] {
     }
 
     if (ch === ':') {
-      tokens.push({ type: 'colon', text: ':', pos });
+      tokens.push({ type: 'colon', text: ':', pos, end: pos + 1 });
       pos++;
       continue;
     }
     if (ch === ',') {
-      tokens.push({ type: 'comma', text: ',', pos });
+      tokens.push({ type: 'comma', text: ',', pos, end: pos + 1 });
       pos++;
       continue;
     }
     if (ch === ';') {
-      tokens.push({ type: 'semicolon', text: ';', pos });
+      tokens.push({ type: 'semicolon', text: ';', pos, end: pos + 1 });
       pos++;
       continue;
     }
     if (ch === '(') {
-      tokens.push({ type: 'lparen', text: '(', pos });
+      tokens.push({ type: 'lparen', text: '(', pos, end: pos + 1 });
       pos++;
       continue;
     }
     if (ch === ')') {
-      tokens.push({ type: 'rparen', text: ')', pos });
+      tokens.push({ type: 'rparen', text: ')', pos, end: pos + 1 });
       pos++;
       continue;
     }
 
     const two = source.slice(pos, pos + 2);
     if (TWO_CHAR_OPERATORS.includes(two)) {
-      tokens.push({ type: 'operator', text: two, pos });
+      tokens.push({ type: 'operator', text: two, pos, end: pos + 2 });
       pos += 2;
       continue;
     }
 
     if (ONE_CHAR_OPERATORS.includes(ch)) {
-      tokens.push({ type: 'operator', text: ch, pos });
+      tokens.push({ type: 'operator', text: ch, pos, end: pos + 1 });
       pos++;
       continue;
     }
 
     // 字句レベルでは判断がつかない文字。無言で読み飛ばさず、1文字の
     // operator トークンとして出す（構文的な妥当性判定はパーサの担当）。
-    tokens.push({ type: 'operator', text: ch, pos });
+    tokens.push({ type: 'operator', text: ch, pos, end: pos + 1 });
     pos++;
   }
 
@@ -239,6 +239,12 @@ export function tokenize(source: string): Token[] {
 export interface ProgramLine {
   readonly lineNumber: number;
   readonly tokens: Token[];
+  /**
+   * 行番号を除いた本文（`tokenize` にそのまま渡した文字列）。
+   * トークンの `pos`/`end` はこの文字列上の位置を指すため、DATA / REM の
+   * 本文を元テキストのまま復元したいパーサ側はこれを使ってスライスする。
+   */
+  readonly text: string;
 }
 
 /**
@@ -261,7 +267,8 @@ export function tokenizeProgram(source: string): ProgramLine[] {
       throw new BasicError(ErrorCode.SYNTAX, `行番号がありません: "${line}"`);
     }
     const lineNumber = Number(line.slice(numStart, pos));
-    result.push({ lineNumber, tokens: tokenize(line.slice(pos)) });
+    const text = line.slice(pos);
+    result.push({ lineNumber, tokens: tokenize(text), text });
   }
 
   return result;

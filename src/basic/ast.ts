@@ -352,12 +352,16 @@ export interface StopStmt extends NodeBase {
 }
 
 /**
- * `REM` または `'`。行末（`:` でも終わらない）までコメントのため、内容は
- * トークン化の時点で捨てられる（Cursor が comment トークンを除外する設計、
- * parser.ts 参照）。実行時は何もしないだけなので中身を持つ必要がない。
+ * `REM`。行末（`:` でも終わらない）までコメント。
+ * `text` は `REM` キーワード直後から行末までの元テキスト（空白・`:` を含む）
+ * そのまま。実行時は何もしないが、LIST 再構成やデバッグ表示のために保持する
+ * （バグ修正: かつては内容を一切保持していなかった）。
+ * なお `'` によるコメントは Cursor が comment トークンを除外する設計上
+ * RemStmt を生成せず、文そのものが増えない（parser.ts 参照）。
  */
 export interface RemStmt extends NodeBase {
   readonly kind: 'RemStmt';
+  readonly text: string;
 }
 
 /** `DATA` の1項目。式パーサへは渡さず、行末または `,`/`:` までの生テキストとして読む。 */

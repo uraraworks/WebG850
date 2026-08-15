@@ -23,7 +23,7 @@ import { tokenize } from '../src/basic/tokenizer.js';
 
 /** 1行分のソースを最後まで消費する形で文リストにパースする（テスト便宜）。 */
 function parseLine(source: string): Stmt[] {
-  const cursor = new Cursor(tokenize(source));
+  const cursor = new Cursor(tokenize(source), source);
   return parseStatementList(cursor);
 }
 
@@ -161,6 +161,37 @@ describe('DATA / REM は : でも終わらない', () => {
     const stmts = parseLine("A=1:' comment : still comment");
     expect(stmts).toHaveLength(1);
     expect(stmts[0]?.kind).toBe('LetStmt');
+  });
+});
+
+describe('DATA / REM の空白復元（バグ修正）', () => {
+  it('DATA HELLO WORLD の項目は空白を保ったまま HELLO WORLD になる', () => {
+    const [stmt] = parseLine('DATA HELLO WORLD') as [DataStmt];
+    expect(stmt.values.map((v) => v.text)).toEqual(['HELLO WORLD']);
+  });
+
+  it('DATA A,B , C はカンマ区切りで前後の空白を落として分割する', () => {
+    const [stmt] = parseLine('DATA A,B , C') as [DataStmt];
+    expect(stmt.values.map((v) => v.text)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('DATA "X,Y",Z は引用符内のカンマを区切りにしない', () => {
+    const [stmt] = parseLine('DATA "X,Y",Z') as [DataStmt];
+    expect(stmt.values).toEqual([
+      { text: 'X,Y', quoted: true, pos: expect.any(Number) },
+      { text: 'Z', quoted: false, pos: expect.any(Number) },
+    ]);
+  });
+
+  it('引用符なしの数値項目（10進・小数・16進）を読める', () => {
+    const [stmt] = parseLine('DATA 1, 2.5, &HFF') as [DataStmt];
+    expect(stmt.values.map((v) => v.text)).toEqual(['1', '2.5', '&HFF']);
+  });
+
+  it('REM の本文は元の空白・: がそのまま残る', () => {
+    const stmts = parseLine('A=1:REM  hello   world : still comment') as Stmt[];
+    expect(stmts).toHaveLength(2);
+    expect((stmts[1] as RemStmt).text).toBe('  hello   world : still comment');
   });
 });
 
