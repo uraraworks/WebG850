@@ -1,15 +1,26 @@
 // エントリポイント。
-// パーサ・インタプリタは別担当が実装するため、ここでは machine/screen と
-// ui/canvas の結線と、「ブラウザを開くだけで動く」ことが目視確認できる
-// テストパターンの描画だけを行う。
+// machine/screen・ui/canvas の結線に加え、tokenizer→parser→interpreter を通し、
+// 実際に簡単な BASIC プログラムを実行して画面へ出す。
 
-import { Screen } from '../machine/screen.ts';
+import { BUILTINS } from '../basic/functions/index.ts';
+import { Interpreter } from '../basic/interpreter.ts';
+import { parseProgram } from '../basic/parser.ts';
+import { Machine } from '../machine/machine.ts';
+import type { Screen } from '../machine/screen.ts';
 import { attachCanvas, PAGE_BACKGROUND_COLOR } from './canvas.ts';
+import { Runtime } from './runtime.ts';
 
 const FIRST_ASCII = 0x20;
 const LAST_ASCII = 0x7e;
 
-/** 起動確認用テストパターン：全95文字のフォント一覧＋枠線・円・塗りつぶし。 */
+/**
+ * 起動確認用テストパターン：全95文字のフォント一覧＋枠線・円・塗りつぶし。
+ *
+ * 【判断した点・理由】 「テストパターンは残すか消すか任せる」との指示に対し、
+ * **残す**を選んだ。font.ts/screen.ts の見た目の崩れに気づける起動時の
+ * セルフチェックとして引き続き有用なため。BASIC プログラムの実行結果は
+ * このパターンに続けて（画面下端からのスクロールで）表示される。
+ */
 function drawTestPattern(screen: Screen): void {
   screen.cls();
 
@@ -41,6 +52,9 @@ function drawTestPattern(screen: Screen): void {
   screen.paint(125, bandTop + 8, 2);
 }
 
+/** 起動時に実行する確認用 BASIC プログラム。テストパターンの後に画面へ流れて出る。 */
+const DEMO_PROGRAM = '10 FOR I=1 TO 5\n20 PRINT I\n30 NEXT I\n40 PRINT "OK"';
+
 function main(): void {
   document.body.style.background = PAGE_BACKGROUND_COLOR;
   document.body.style.display = 'flex';
@@ -54,11 +68,32 @@ function main(): void {
     throw new Error('#screen canvas が見つかりません');
   }
 
-  const screen = new Screen();
-  drawTestPattern(screen);
+  const machine = new Machine();
+  drawTestPattern(machine.screen);
 
-  const { render } = attachCanvas(canvas, screen);
+  const { render, resize } = attachCanvas(canvas, machine.screen);
   render();
+  window.addEventListener('resize', resize);
+
+  window.addEventListener('keydown', (e) => machine.keyboard.handleKeyDown(e));
+  window.addEventListener('keyup', (e) => machine.keyboard.handleKeyUp(e));
+
+  // AudioContext はユーザー操作（クリック・キー押下等）のイベントハンドラの中でしか
+  // 生成できないブラウザがあるため、最初の操作で一度だけ接続する。
+  let audioAttached = false;
+  const attachAudioOnce = (): void => {
+    if (audioAttached) return;
+    audioAttached = true;
+    machine.attachAudio(new AudioContext());
+  };
+  window.addEventListener('keydown', attachAudioOnce, { once: true });
+  window.addEventListener('click', attachAudioOnce, { once: true });
+
+  const program = parseProgram(DEMO_PROGRAM);
+  const interpreter = new Interpreter(program, machine, BUILTINS);
+
+  const runtime = new Runtime(interpreter, machine.keyboard, { render });
+  runtime.start();
 }
 
 main();

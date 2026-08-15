@@ -2,42 +2,39 @@
  * PC-G850V の「マシン」束ね役。
  *
  * `docs/design/phase1_architecture.md` のディレクトリ構成メモに従い、
- * `screen`（画面）と、キーボード／音のプレースホルダを1つにまとめる。
- * キーボード（INKEY$・物理キー入力）と BEEP（WebAudio）の実装は次の担当が
- * 行うため、ここではインタフェースだけを定義し、既定実装は呼ばれたら
- * 明示的に `UnsupportedError` を投げる（無言のダミーにしない。
- * `docs/design/phase1_architecture.md`「未実装を無言にしない」節）。
+ * `screen`（画面）・`keyboard`（`src/machine/keyboard.ts`）・
+ * `sound`（`src/machine/sound.ts`、BEEP/WebAudio）を1つにまとめる。
+ * `sound` は AudioContext 未接続でも動かせるよう、既定では鳴動処理を
+ * 何もしない `NullSound` を積んでおく（`Machine.attachAudio` で後から接続する）。
  */
 
-import { UnsupportedError } from '../basic/errors.js';
 import { LinearCongruentialGenerator, seedFromCurrentTime } from '../basic/uncertain.js';
+import { Keyboard } from './keyboard.ts';
 import { Screen } from './screen.ts';
+import { Sound, type AudioContextLike } from './sound.ts';
 
-/** キーボード入力のインタフェース。実装は次担当（INKEY$・物理キー入力）。 */
+/** キーボード入力のインタフェース。`Keyboard`（`keyboard.ts`）が実装する。 */
 export interface KeyboardInterface {
   /** INKEY$ 相当。押されているキー1文字、キーが無ければ空文字列を返す想定。 */
   inkey(): string;
 }
 
-/** BEEP のインタフェース。実装は次担当（WebAudio）。 */
+/** BEEP のインタフェース。`Sound`（`sound.ts`）が実装する。 */
 export interface SoundInterface {
   beep(count: number, pitch: number | null, duration: number | null): void;
 }
 
 /**
- * 未実装のプレースホルダ実装。
- * 「動いているように見えて実は何もしていない」状態を避けるため、
- * 呼ばれたら常に `UnsupportedError` を投げる。
+ * `AudioContext` 未接続時の既定実装。無言で何もしない（例外を投げない）。
+ *
+ * 【判断した点・理由】 `AudioContext` はブラウザのユーザー操作
+ * （クリック等）まで生成できない制約があるため、起動直後は未接続が普通に起こる。
+ * `UnsupportedError` を投げると「BEEP未実装」と誤解を招くため、ここは
+ * 「未実装」ではなく「まだ音源へ接続していない」状態として無音を返す。
  */
-class UnimplementedKeyboard implements KeyboardInterface {
-  inkey(): string {
-    throw new UnsupportedError('INKEY$');
-  }
-}
-
-class UnimplementedSound implements SoundInterface {
+class NullSound implements SoundInterface {
   beep(): void {
-    throw new UnsupportedError('BEEP');
+    // 何もしない（AudioContext 未接続）。
   }
 }
 
@@ -55,10 +52,10 @@ export interface UnimplementedReport {
 export class Machine {
   readonly screen = new Screen();
 
-  /** 次担当が実装するまでは `UnimplementedKeyboard`（呼ぶと例外）が入る。 */
-  keyboard: KeyboardInterface = new UnimplementedKeyboard();
-  /** 次担当が実装するまでは `UnimplementedSound`（呼ぶと例外）が入る。 */
-  sound: SoundInterface = new UnimplementedSound();
+  /** 押下中キー・INKEY$バッファ・INPUT行入力・BREAK検出を持つ（`keyboard.ts`）。 */
+  readonly keyboard = new Keyboard();
+  /** `attachAudio` で `AudioContext` を接続するまでは無音（`NullSound`）。 */
+  sound: SoundInterface = new NullSound();
 
   private rng: LinearCongruentialGenerator;
 
@@ -67,6 +64,15 @@ export class Machine {
 
   constructor(seed: number = seedFromCurrentTime()) {
     this.rng = new LinearCongruentialGenerator(seed);
+  }
+
+  /**
+   * `AudioContext`（ブラウザのユーザー操作イベント内で生成したもの）を接続し、
+   * 以後 `BEEP` を実際に鳴らせるようにする。テストでは `AudioContextLike` を
+   * 満たすダミーを渡せる（`sound.ts` 参照）。
+   */
+  attachAudio(ctx: AudioContextLike): void {
+    this.sound = new Sound(ctx);
   }
 
   /**
