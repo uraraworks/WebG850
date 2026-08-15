@@ -91,6 +91,10 @@ import type { DrawMode } from '../machine/screen.js';
 import { BasicError, ErrorCode } from './errors.js';
 import { tokenizeProgram } from './tokenizer.js';
 import type { Token, TokenType } from './token.js';
+import {
+  GENERATED_FUNCTIONS,
+  GENERATED_STATEMENT_PHASES,
+} from './generated/command_table.js';
 
 // ─────────────────────────────────────────────────────────────
 // カーソル（次の担当が文パーサでもそのまま使う共通構造）
@@ -193,9 +197,9 @@ export class Cursor {
 // 関数名の分類（docs/spec/basic_commands.yaml の kind: function を正典とする）
 // ─────────────────────────────────────────────────────────────
 //
-// token.ts の KEYWORDS 表と同じ方針で、yaml の内容をここに手で写し取る
-// （ビルドに yaml パーサを追加していないため）。差し替えるときは
-// basic_commands.yaml 側の kind: function な行と突き合わせること。
+// 生成物 src/basic/generated/command_table.ts（npm run gen で再生成）をそのまま使う。
+// yaml に無いが必要な例外は現時点で無い（全54関数が過不足なく yaml と一致することを
+// docs/spec/basic_commands.yaml との突き合わせで確認済み）。
 
 type FunctionPhase = 1 | 2 | 3;
 
@@ -205,37 +209,12 @@ interface FunctionInfo {
   readonly noParen: boolean;
 }
 
-/** Phase 1: 引数も括弧も取らない4関数。 */
-const PHASE1_NO_PAREN = ['PI', 'FRE', 'MDF', 'INKEY$'];
-
-/** Phase 1: 括弧付き関数（45個 = 49 - 4）。 */
-const PHASE1_WITH_PAREN = [
-  'ABS', 'ACS', 'AHC', 'AHS', 'AHT', 'ASC', 'ASN', 'ATN', 'CHR$', 'COS',
-  'CUB', 'CUR', 'DEG', 'DMS', 'DMS$', 'EXP', 'FACT', 'FIX', 'HCS', 'HEX$',
-  'HSN', 'HTN', 'INT', 'LEFT$', 'LEN', 'LN', 'LOG', 'MID$', 'NCR', 'NPR',
-  'POINT', 'POL', 'RCP', 'REC', 'RIGHT$', 'RND', 'SGN', 'SIN', 'SQR', 'SQU',
-  'STR$', 'TAN', 'TEN', 'VAL', 'VDEG',
-];
-
-/** Phase 2 の関数。PIOGET のみ括弧なし。 */
-const PHASE2_FUNCTIONS: ReadonlyArray<[string, boolean]> = [
-  ['INP', false],
-  ['PEEK', false],
-  ['PIOGET', true],
-];
-
-/** Phase 3 の関数。 */
-const PHASE3_FUNCTIONS: ReadonlyArray<[string, boolean]> = [
-  ['EOF', false],
-  ['LOF', false],
-];
-
-const FUNCTION_INFO: ReadonlyMap<string, FunctionInfo> = new Map<string, FunctionInfo>([
-  ...PHASE1_NO_PAREN.map((name): [string, FunctionInfo] => [name, { phase: 1, noParen: true }]),
-  ...PHASE1_WITH_PAREN.map((name): [string, FunctionInfo] => [name, { phase: 1, noParen: false }]),
-  ...PHASE2_FUNCTIONS.map(([name, noParen]): [string, FunctionInfo] => [name, { phase: 2, noParen }]),
-  ...PHASE3_FUNCTIONS.map(([name, noParen]): [string, FunctionInfo] => [name, { phase: 3, noParen }]),
-]);
+const FUNCTION_INFO: ReadonlyMap<string, FunctionInfo> = new Map<string, FunctionInfo>(
+  GENERATED_FUNCTIONS.map((f): [string, FunctionInfo] => [
+    f.name,
+    { phase: f.phase, noParen: f.noParen },
+  ])
+);
 
 // ─────────────────────────────────────────────────────────────
 // 式パーサ本体
@@ -492,30 +471,17 @@ export function cursorFromTokens(tokens: readonly Token[]): Cursor {
  * WAIT/RANDOMIZE/LCOPY）とダイレクトコマンド系（RUN/LIST/NEW/AUTO/DELETE/
  * RENUM/CONT/TRON/TROFF/DEGREE/RADIAN/GRAD/PASS）は phase 1 のためここには
  * 含めず、parseStatement の switch に個別ケースとして実装した。
+ *
+ * 本体は生成物 GENERATED_STATEMENT_PHASES（npm run gen で再生成）。
+ * yaml に無いが必要な例外はここに個別追加する:
+ * - `POIPUT`（yaml 正典名は `PIOPUT`）: token.ts 側は basic_tokens.yaml の表記
+ *   どおり POIPUT を予約語として採用している（既知の食い違い、token.ts コメント
+ *   参照）。generator は tokens.yaml に無い名前（PIOPUT）を持つ命令を除外するため
+ *   ここで手動補完する。
  */
 const STATEMENT_PHASE: ReadonlyMap<string, 2 | 3> = new Map<string, 2 | 3>([
-  ['CALL', 2],
-  ['OUT', 2],
-  ['POKE', 2],
-  ['PIOSET', 2],
-  // yaml 正典名は PIOPUT だが token.ts 側は basic_tokens.yaml の表記
-  // どおり POIPUT を採用している（既知の食い違い、token.ts コメント参照）。
+  ...GENERATED_STATEMENT_PHASES.map((s): [string, 2 | 3] => [s.name, s.phase]),
   ['POIPUT', 2],
-  ['MON', 2],
-  ['CLOSE', 3],
-  ['CLOAD', 3],
-  ['CSAVE', 3],
-  ['SAVE', 3],
-  ['LOAD', 3],
-  ['FILES', 3],
-  ['LFILES', 3],
-  ['KILL', 3],
-  ['HDCOPY', 3],
-  ['OPEN', 3],
-  ['SPOUT', 3],
-  ['SPINP', 3],
-  ['LLIST', 3],
-  ['LPRINT', 3],
 ]);
 
 /** 変数参照または配列参照を読む（LET/INPUT/READ/ERASE などの代入・対象リストで共用）。 */

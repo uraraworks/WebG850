@@ -1,5 +1,8 @@
 // トークン種別の定義。予約語表は docs/spec/basic_tokens.yaml の `name` 列を
-// 正典とする（SCHEMA.md / 依頼指示）。ここに手で予約語表を作り直さない。
+// 正典とする（SCHEMA.md / 依頼指示）。ここに手で予約語表を作り直さない
+// （src/basic/generated/command_table.ts を npm run gen で生成し、それを使う）。
+
+import { TOKEN_KEYWORDS } from './generated/command_table.js';
 
 export type TokenType =
   | 'keyword' // 予約語（KEYWORDS 参照）
@@ -33,37 +36,29 @@ export interface Token {
 }
 
 /**
- * 予約語表（docs/spec/basic_tokens.yaml の name 列、141件）。
+ * yaml に無いが予約語として必要な例外（生成物 TOKEN_KEYWORDS には混ぜない）。
+ *
+ * - `AUTO` は命令一覧（basic_commands.yaml）側にのみ存在し中間コードが
+ *   basic_tokens.yaml に無いが、文パーサ（ダイレクトコマンド系担当）が
+ *   予約語として認識する必要があるため追加した。中間コード値は未確定のまま
+ *   （トークン化時の判定にしか使わないため実害はない）。
+ */
+const KEYWORD_EXCEPTIONS: readonly string[] = ['AUTO'];
+
+/**
+ * 予約語表（docs/spec/basic_tokens.yaml の name 列、141件 + 上記例外）。
+ * 生成元は src/basic/generated/command_table.ts（npm run gen で再生成）。
  *
  * 既知の注意点（docs/仕様_BASIC命令セット.md「中間コード表との突き合わせ」節より）:
  * - `POIPUT`（0x49）は中間コード表側の誤記で、マニュアル本文・目次では `PIOPUT` に
  *   統一されている。ただし SCHEMA.md の指示により予約語は basic_tokens.yaml を
  *   正典とするため、ここでは修正せず yaml の表記のままにしている
  *   （パーサ担当が対応する際にどちらを採用するか判断すること）。
- * - `AUTO` は命令一覧側にのみ存在し中間コードが basic_tokens.yaml に無いが、
- *   文パーサ（ダイレクトコマンド系担当）が予約語として認識する必要があるため
- *   KEYWORDS に追加した。中間コード値は未確定のまま（トークン化時の判定にしか
- *   使わないため実害はない）。
  *
  * 最長一致でのキーワード判定に使うため、あらかじめ文字列長の降順に並べておく
  * （tokenizer.ts 側で改めてソートしてもよいが、表自体を読みやすい順にしておく）。
  */
-export const KEYWORDS: readonly string[] = [
-  'AUTO', 'MON', 'RUN', 'NEW', 'CONT', 'PASS', 'LIST', 'LLIST', 'CLOAD', 'RENUM', 'LOAD',
-  'DELETE', 'FILES', 'LCOPY', 'CSAVE', 'OPEN', 'CLOSE', 'SAVE', 'RANDOMIZE', 'DEGREE',
-  'RADIAN', 'GRAD', 'BEEP', 'WAIT', 'GOTO', 'TRON', 'TROFF', 'CLEAR', 'USING', 'DIM',
-  'CALL', 'POKE', 'GPRINT', 'PSET', 'PRESET', 'ERASE', 'LFILES', 'KILL', 'OUT',
-  'PIOSET', 'POIPUT', 'SPOUT', 'SPINP', 'HDCOPY', 'ENDIF', 'REPEAT', 'UNTIL', 'CLS',
-  'LOCATE', 'TO', 'STEP', 'THEN', 'ON', 'IF', 'FOR', 'LET', 'REM', 'END', 'NEXT',
-  'STOP', 'READ', 'DATA', 'PRINT', 'INPUT', 'GOSUB', 'LNINPUT', 'LPRINT', 'RETURN',
-  'RESTORE', 'GCURSOR', 'LINE', 'CIRCLE', 'PAINT', 'OUTPUT', 'APPEND', 'AS', 'ELSE',
-  'WHILE', 'WEND', 'SWITCH', 'CASE', 'DEFAULT', 'ENDSWITCH', 'MDF', 'REC', 'POL',
-  'TEN', 'RCP', 'SQU', 'CUR', 'HSN', 'HCS', 'HTN', 'AHS', 'AHC', 'AHT', 'FACT', 'LN',
-  'LOG', 'EXP', 'SQR', 'SIN', 'COS', 'TAN', 'INT', 'ABS', 'SGN', 'DEG', 'DMS', 'ASN',
-  'ACS', 'ATN', 'RND', 'AND', 'OR', 'NOT', 'PEEK', 'XOR', 'INP', 'PIOGET', 'POINT',
-  'PI', 'FRE', 'EOF', 'LOF', 'NCR', 'NPR', 'CUB', 'MOD', 'FIX', 'ASC', 'VAL', 'LEN',
-  'VDEG', 'INKEY$', 'MID$', 'LEFT$', 'RIGHT$', 'CHR$', 'STR$', 'HEX$', 'DMS$',
-]
+export const KEYWORDS: readonly string[] = [...TOKEN_KEYWORDS, ...KEYWORD_EXCEPTIONS]
   // 最長一致 (tokenizer.ts の readKeyword) のため長い順に並べ替える。
   // 同じ長さのものは表の元の並びを保つ（安定ソート）。
   .slice()
