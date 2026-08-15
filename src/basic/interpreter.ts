@@ -910,6 +910,17 @@ export class Interpreter {
     return Math.max(0, Math.min(6, t)) as FillPattern;
   }
 
+  /**
+   * 描画後にグラフィックカーソルを追従させる（`GRAPHICS_CURSOR_FOLLOWS_DRAWING` 参照）。
+   * PSET/PRESET/LINE から共通で呼ぶ。
+   */
+  private followGraphicsCursor(x: number, y: number): void {
+    markUncertainUsed('GRAPHICS_CURSOR_FOLLOWS_DRAWING');
+    if (GRAPHICS_CURSOR_FOLLOWS_DRAWING) {
+      this.machine.screen.gcursor(x, y);
+    }
+  }
+
   private executePset(stmt: Extract<Stmt, { kind: 'PsetStmt' }>): StmtResult {
     const x = this.evalCoord(stmt.x);
     const y = this.evalCoord(stmt.y);
@@ -918,7 +929,7 @@ export class Interpreter {
     } else {
       this.machine.screen.pset(x, y);
     }
-    this.machine.screen.gcursor(x, y);
+    this.followGraphicsCursor(x, y);
     return 'advance';
   }
 
@@ -926,7 +937,7 @@ export class Interpreter {
     const x = this.evalCoord(stmt.x);
     const y = this.evalCoord(stmt.y);
     this.machine.screen.preset(x, y);
-    this.machine.screen.gcursor(x, y);
+    this.followGraphicsCursor(x, y);
     return 'advance';
   }
 
@@ -947,7 +958,7 @@ export class Interpreter {
     } else {
       this.machine.screen.line(x1, y1, x2, y2, mode);
     }
-    this.machine.screen.gcursor(x2, y2);
+    this.followGraphicsCursor(x2, y2);
     return 'advance';
   }
 
