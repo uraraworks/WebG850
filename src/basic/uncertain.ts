@@ -23,7 +23,9 @@ export type UncertainId =
   | 'RANDOM_PRNG'
   | 'REC_RESERVED_VAR_ASSIGNMENT'
   | 'BEEP_PITCH_LINEAR_INTERPOLATION'
-  | 'BEEP_DURATION_AS_PERIOD_COUNT';
+  | 'BEEP_DURATION_AS_PERIOD_COUNT'
+  | 'INPUT_ON_INVALID_NUMBER'
+  | 'GRAPHICS_CURSOR_FOLLOWS_DRAWING';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -337,3 +339,47 @@ export function durationParamToMs(durationParam: number, frequencyHz: number): n
   const periodMs = 1000 / frequencyHz;
   return durationParam * periodMs;
 }
+
+// ─────────────────────────────────────────────────────────────
+// INPUT で数値変数に非数値が入力されたときの挙動
+// （旧実装は 0 を代入して継続していたが、それでは入力ミスに誰も気づけず
+//  改善のループが回らないため見直した。interpreter.ts の executeInput 参照）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `true` なら、数値変数への `INPUT` に非数値文字列が入力されたとき、
+ * その値を捨てて同じ変数の入力を求め直す（多くの BASIC の `?REDO` 相当）。
+ * `false` なら（旧実装）0 を代入してそのまま先へ進む。
+ *
+ * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` の INPUT には
+ * 数値変換に失敗した場合の記載が無く未確定。0 を黙って代入する実装は、
+ * 利用者の入力ミスも作品側のバグも「なんか変な値が入った」以上の情報を
+ * 残さず、誰も気づけないまま実行が進んでしまう（親 CLAUDE.md
+ * 「間違いが見えないと改善のループが回らない」に反する）。
+ * 再入力を求める側は、実機のポケコン BASIC を含め同世代の多くの実装が
+ * 採る挙動であり、「入力ミスが見える」という安全側でもあるため暫定採用する。
+ *
+ * 参照: docs/spec/basic_commands.yaml の INPUT エントリの notes
+ */
+export const INPUT_ON_INVALID_NUMBER_REDO = true;
+
+// ─────────────────────────────────────────────────────────────
+// PSET / LINE 描画後のグラフィックカーソル追従
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `true` なら `PSET` / `PRESET` / `LINE` の描画後、グラフィックカーソルを
+ * 描画した点（LINE は終点）へ移動させる。
+ *
+ * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` の PSET/PRESET には
+ * カーソル追従の記載が無く未確定。ただし LINE の notes には「(x1,y1)省略時は
+ * グラフィックカーソルの現在位置を使う」と明記されており、これは
+ * `LINE -(x2,y2)` のように前回の描画点から続けて線を引く書き方
+ * （同世代 BASIC で広く見られる連結描画のイディオム）を成立させるには、
+ * 描画のたびにカーソルが追従している必要がある。PSET/PRESET も同じ追従を
+ * させる方が「PSET で打った点から LINE を続ける」書き方が自然に動くため、
+ * 3命令とも追従させる側を暫定採用した。
+ *
+ * 参照: docs/spec/basic_commands.yaml の LINE エントリの params(x1,y1) notes
+ */
+export const GRAPHICS_CURSOR_FOLLOWS_DRAWING = true;

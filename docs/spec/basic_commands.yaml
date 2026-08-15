@@ -1300,12 +1300,12 @@ commands:
     returns: none
     errors: []
     phase: 1
-    status: documented
+    status: partial
     ocr_suspect: false
     verified_by: manual_3rd_party
     verifiable_by_measurement: true
     source: manual_de p.212
-    notes: メッセージの後にカンマを置くと、カーソルはメッセージ表示行の1つ上の行頭に移動する。
+    notes: メッセージの後にカンマを置くと、カーソルはメッセージ表示行の1つ上の行頭に移動する。数値変数に非数値を入力したときの挙動は未確定。実装は再入力を求める（src/basic/uncertain.ts の INPUT_ON_INVALID_NUMBER_REDO 参照）。
   - name: INPUT#
     aliases: []
     kind: statement

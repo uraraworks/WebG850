@@ -237,6 +237,45 @@ describe('INPUT', () => {
     expect(interpreter.variables.getScalar('A')).toEqual(numeric(7));
     expect(interpreter.variables.getScalar('B$')).toEqual({ type: 'string', value: 'HI' });
   });
+
+  it('数値変数への非数値入力は代入されず、再入力待ちに戻る（INPUT_ON_INVALID_NUMBER_REDO）', () => {
+    const program = parseProgram('10 INPUT A\n20 B=A+1');
+    const machine = new Machine(1);
+    const interpreter = new Interpreter(program, machine, {});
+    const gen = interpreter.run();
+
+    let res = gen.next();
+    let guard = 0;
+    const waitForInput = () => {
+      while (!res.done && res.value.kind !== 'input') {
+        res = gen.next();
+        guard++;
+        if (guard > 1000) throw new Error('INPUT待ちに到達しませんでした');
+      }
+    };
+    waitForInput();
+
+    // 非数値を入力 → 0 を代入して先へ進んでしまうと不可視のバグになるため、
+    // 代入せず再度 INPUT 待ちに戻ることを確認する。
+    typeLineAndEnter(machine, 'ABC');
+    res = gen.next();
+    waitForInput();
+    // 代入されずに同じ INPUT 文で再度待ち状態に戻っている（終了していない）ことが
+    // 「無言で0が入って先へ進む」旧挙動との違い。
+    expect(res.done).toBe(false);
+
+    // 続けて正しい数値を入力すれば、今度こそ代入されて先へ進む。
+    typeLineAndEnter(machine, '41');
+    res = gen.next();
+    guard = 0;
+    while (!res.done) {
+      res = gen.next();
+      guard++;
+      if (guard > 1000) throw new Error('再入力後に終了しませんでした');
+    }
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(41));
+    expect(interpreter.variables.getScalar('B')).toEqual(numeric(42));
+  });
 });
 
 describe('LIST', () => {

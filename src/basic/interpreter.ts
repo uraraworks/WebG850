@@ -29,6 +29,8 @@ import type { Machine } from '../machine/machine.ts';
 import {
   ANGLE_MODE_RESET_ON_RUN,
   FOR_CHECKS_BEFORE_BODY,
+  GRAPHICS_CURSOR_FOLLOWS_DRAWING,
+  INPUT_ON_INVALID_NUMBER_REDO,
   markUncertainUsed,
   type UncertainId,
 } from './uncertain.js';
@@ -500,18 +502,18 @@ export class Interpreter {
 
   /**
    * INPUT で入力された1行分の生テキストを、対象変数の型に応じて変換する。
-   *
-   * 【判断】 数値変換に失敗した場合の実機挙動（"Redo from start" のような
-   * 再入力要求）はマニュアルに記載が無く、再入力フローの実装はホスト側との
-   * 協調が要るため今回のスコープ外。安全側として0を代入し実行を継続する
-   * （無限ループや例外送出を避ける）。
+   * 数値変数への変換に失敗したときは `null` を返す（呼び出し側が
+   * `INPUT_ON_INVALID_NUMBER_REDO` に従って再入力を求める。
+   * `docs/basic/uncertain.ts` の該当項参照）。
    */
-  private convertInputValue(raw: string, target: AssignTarget): BasicValue {
+  private convertInputValue(raw: string, target: AssignTarget): BasicValue | null {
     if (variableValueType(target.name) === 'string') {
       return str(raw);
     }
-    const n = Number(raw.trim());
-    return numeric(Number.isNaN(n) ? 0 : n);
+    const trimmed = raw.trim();
+    const n = Number(trimmed);
+    if (Number.isNaN(n)) return null;
+    return numeric(n);
   }
 
   private executeInput(stmt: Extract<Stmt, { kind: 'InputStmt' }>): StmtResult {
@@ -538,9 +540,36 @@ export class Interpreter {
       const line = this.machine.keyboard.takeLine();
       this.machine.screen.writeText(`${line}\n`);
       const parts = line.split(',');
-      group.targets.forEach((target, i) => {
+      const converted: BasicValue[] = [];
+      let invalid = false;
+      for (let i = 0; i < group.targets.length; i++) {
         const raw = (parts[i] ?? '').trim();
-        this.assignTo(target, this.convertInputValue(raw, target));
+        const value = this.convertInputValue(raw, group.targets[i]);
+        if (value === null) {
+          invalid = true;
+          break;
+        }
+        converted.push(value);
+      }
+      if (invalid) {
+        markUncertainUsed('INPUT_ON_INVALID_NUMBER');
+        if (INPUT_ON_INVALID_NUMBER_REDO) {
+          // 同じグループ（プロンプト＋変数群）を再入力させる。pc はこの文のまま
+          // 据え置かれているので、次に coreLoop から呼ばれたときにこの while が
+          // 同じ groupIndex から再開する。
+          st.promptShown = false;
+          continue;
+        }
+        // 旧挙動（暫定オフ時）：0 を代入して継続する。
+        group.targets.forEach((target, i) => {
+          this.assignTo(target, variableValueType(target.name) === 'string' ? str('') : numeric(0));
+        });
+        st.groupIndex++;
+        st.promptShown = false;
+        continue;
+      }
+      group.targets.forEach((target, i) => {
+        this.assignTo(target, converted[i]);
       });
       st.groupIndex++;
       st.promptShown = false;
