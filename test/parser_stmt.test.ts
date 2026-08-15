@@ -280,8 +280,11 @@ describe('その他の文', () => {
   });
 
   it('未知のキーワードは UnsupportedStmt(unknown) になる', () => {
-    const stmt = parseLine('CLS')[0];
-    expect(stmt).toMatchObject({ kind: 'UnsupportedStmt', name: 'CLS', reason: 'unknown' });
+    // 【判断】 CLS は元々このテストの例だったが、画面・図形系パーサ担当の
+    // スコープで ClsStmt として実装されたため差し替えた。MDF は関数専用の
+    // キーワード（引数なし関数）で文としては未対応のまま残るため代わりに使う。
+    const stmt = parseLine('MDF')[0];
+    expect(stmt).toMatchObject({ kind: 'UnsupportedStmt', name: 'MDF', reason: 'unknown' });
   });
 
   it('phase2/3 と判明している命令は reason で区別される', () => {

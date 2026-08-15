@@ -4,6 +4,16 @@
 // 式ノードは今回（式パーサ担当）で確定させる。文ノードは次の担当（文パーサ）が
 // 追加しやすいよう、判別可能な union（`kind` フィールドで判別）の形だけ用意し、
 // 中身は最小限にとどめる。
+//
+// 画面・図形系（CLS/LOCATE/GCURSOR/PSET/PRESET/LINE/CIRCLE/PAINT/GPRINT/BEEP/
+// WAIT/RANDOMIZE/LCOPY）とダイレクトコマンド系（RUN/LIST/NEW/AUTO/DELETE/RENUM/
+// CONT/TRON/TROFF/DEGREE/RADIAN/GRAD/PASS）は今回（文パーサ担当・第2弾）で追加。
+// 描画モード（S|R|X）の型は src/machine/screen.ts の既存定義（DrawMode）を
+// そのまま再利用する（描画側 API と噛み合わせるため）。塗りパターンは
+// CIRCLE/PAINT とも実行時に検証する数値式（Expr）として扱うため、
+// screen.ts の FillPattern（0〜6 のリテラル型）はここでは使わない。
+
+import type { DrawMode } from '../machine/screen.ts';
 
 // ─────────────────────────────────────────────────────────────
 // 式
@@ -398,6 +408,235 @@ export interface ClearStmt extends NodeBase {
   readonly kind: 'ClearStmt';
 }
 
+// ─────────────────────────────────────────────────────────────
+// 画面・図形系
+// ─────────────────────────────────────────────────────────────
+
+/** `CLS`（単独）。画面消去＋カーソルを(0,0)へ。 */
+export interface ClsStmt extends NodeBase {
+  readonly kind: 'ClsStmt';
+}
+
+/**
+ * `LOCATE <桁>[,<行>]`。
+ * 【判断】 yaml の params は桁・行とも optional:true で「省略した軸は現在位置を
+ * 維持する」と summary にあるため、桁だけを省略する `LOCATE ,3` のような書き方も
+ * 受理する（format 本文には無いが summary の記述を優先）。
+ */
+export interface LocateStmt extends NodeBase {
+  readonly kind: 'LocateStmt';
+  readonly col: Expr | null;
+  readonly row: Expr | null;
+}
+
+/** `GCURSOR (<x>,<y>)`。両軸とも省略不可（yaml params の optional:false）。 */
+export interface GcursorStmt extends NodeBase {
+  readonly kind: 'GcursorStmt';
+  readonly x: Expr;
+  readonly y: Expr;
+}
+
+/** `PSET (<x>,<y>)[,X]`。X 指定時は現在の点灯状態を反転する。 */
+export interface PsetStmt extends NodeBase {
+  readonly kind: 'PsetStmt';
+  readonly x: Expr;
+  readonly y: Expr;
+  readonly invert: boolean;
+}
+
+/** `PRESET (<x>,<y>)`。オプション無し。 */
+export interface PresetStmt extends NodeBase {
+  readonly kind: 'PresetStmt';
+  readonly x: Expr;
+  readonly y: Expr;
+}
+
+/** 座標1点。LINE の始点・終点で使う。 */
+export interface Point {
+  readonly x: Expr;
+  readonly y: Expr;
+}
+
+/**
+ * `LINE [(<x1>,<y1>)]-(<x2>,<y2>)[,S|R|X][,<線種>][,B|BF]`。
+ * 始点省略時は `from` が null（実行時にグラフィックカーソル位置を使う）。
+ * 【判断】 `S|R|X`・`線種`・`B|BF` の3つは format 本文には個別の `[,]` で
+ * 並ぶだけで CIRCLE のような入れ子の角括弧は無いが、実際の BASIC の慣行に
+ * 倣い「空のまま飛ばす」書き方（例: `,,B` で描画モード・線種を省略し矩形だけ
+ * 指定）も受理できるようにした。根拠が yaml に無い拡張のため明記する。
+ */
+export interface LineStmt extends NodeBase {
+  readonly kind: 'LineStmt';
+  readonly from: Point | null;
+  readonly to: Point;
+  readonly mode: DrawMode | null;
+  readonly lineStyle: Expr | null;
+  readonly box: 'B' | 'BF' | null;
+}
+
+/**
+ * `CIRCLE (<x>,<y>),<半径>[,[開始角],[終了角],[縦横比][,S|R|X],[パターン]]`。
+ * 開始角・終了角・縦横比・パターンは「省略」と「0 等の値を指定」を区別する
+ * ため、各フィールドを `Expr | null` にする（null＝省略）。
+ */
+export interface CircleStmt extends NodeBase {
+  readonly kind: 'CircleStmt';
+  readonly x: Expr;
+  readonly y: Expr;
+  readonly radius: Expr;
+  readonly startAngle: Expr | null;
+  readonly endAngle: Expr | null;
+  readonly aspect: Expr | null;
+  readonly mode: DrawMode | null;
+  readonly pattern: Expr | null;
+}
+
+/** `PAINT (<x>,<y>),<パターン>`。パターンは省略不可。 */
+export interface PaintStmt extends NodeBase {
+  readonly kind: 'PaintStmt';
+  readonly x: Expr;
+  readonly y: Expr;
+  readonly pattern: Expr;
+}
+
+/** `GPRINT` の1項目の直前区切り。`,`＝1ドット隙間、`;`＝連結（notes 参照）。 */
+export interface GprintSegment {
+  readonly sep: ',' | ';' | null;
+  readonly value: Expr;
+}
+
+/**
+ * `GPRINT <ビットパターン>[;<ビットパターン>…]` / `GPRINT <文字列>` / 引数なし。
+ * 2形態とも同じ `items`（Expr のリスト）で表現できる（文字列も Expr の
+ * StringLiteral として扱えるため）。引数なしは `items` が空配列（実行時は
+ * カーソルを1ドット下げるだけ、docs/spec の notes 参照）。
+ */
+export interface GprintStmt extends NodeBase {
+  readonly kind: 'GprintStmt';
+  readonly items: readonly GprintSegment[];
+}
+
+/** `BEEP <回数>[,[<音程>][,<持続時間>]]`。音程・持続時間は個別に省略できる。 */
+export interface BeepStmt extends NodeBase {
+  readonly kind: 'BeepStmt';
+  readonly count: Expr;
+  readonly pitch: Expr | null;
+  readonly duration: Expr | null;
+}
+
+/** `WAIT [<数値>]`。省略時は無限待機（実行側の意味付け）。 */
+export interface WaitStmt extends NodeBase {
+  readonly kind: 'WaitStmt';
+  readonly value: Expr | null;
+}
+
+/** `RANDOMIZE`（単独）。乱数の種を変える。 */
+export interface RandomizeStmt extends NodeBase {
+  readonly kind: 'RandomizeStmt';
+}
+
+/** `LCOPY <開始行>,<終了行>,<コピー先行>`。3つとも省略不可の行番号。 */
+export interface LcopyStmt extends NodeBase {
+  readonly kind: 'LcopyStmt';
+  readonly fromLine: Expr;
+  readonly toLine: Expr;
+  readonly destLine: Expr;
+}
+
+// ─────────────────────────────────────────────────────────────
+// ダイレクトコマンド系
+// ─────────────────────────────────────────────────────────────
+//
+// RUN 等は「ダイレクトモードのコマンドだがプログラム中にも書ける」
+// （yaml notes）ため、他の文と同じ Stmt union にフラットに含める
+// （kind: statement/command の別は AST 上では区別しない）。
+
+/** `RUN [<行番号>|"<label>"]`。 */
+export interface RunStmt extends NodeBase {
+  readonly kind: 'RunStmt';
+  readonly target: JumpTarget | null;
+}
+
+/** `LIST [<行番号>|"<label>"]`。 */
+export interface ListStmt extends NodeBase {
+  readonly kind: 'ListStmt';
+  readonly target: JumpTarget | null;
+}
+
+/** `NEW`（単独）。 */
+export interface NewStmt extends NodeBase {
+  readonly kind: 'NewStmt';
+}
+
+/**
+ * `AUTO [[<開始行番号>][,<増分>]]`。全省略・開始行のみ・両方指定を許す
+ * （yaml notes: 省略時は開始行10・増分10）。
+ */
+export interface AutoStmt extends NodeBase {
+  readonly kind: 'AutoStmt';
+  readonly startLine: Expr | null;
+  readonly increment: Expr | null;
+}
+
+/**
+ * `DELETE [<行番号>][-][<行番号>]`。単一行／範囲／先頭から／以降全部の
+ * 4パターンを `start`・`end`・`hasDash` の組み合わせで表す。
+ * - 単一行 `DELETE 100`: start=100, end=null, hasDash=false
+ * - 範囲 `DELETE 100-200`: start=100, end=200, hasDash=true
+ * - 以降全部 `DELETE 100-`: start=100, end=null, hasDash=true
+ * - 先頭から `DELETE -200`: start=null, end=200, hasDash=true
+ */
+export interface DeleteStmt extends NodeBase {
+  readonly kind: 'DeleteStmt';
+  readonly start: Expr | null;
+  readonly end: Expr | null;
+  readonly hasDash: boolean;
+}
+
+/** `RENUM [<旧行番号>[,<新行番号>][,<増分>]]`。 */
+export interface RenumStmt extends NodeBase {
+  readonly kind: 'RenumStmt';
+  readonly oldLine: Expr | null;
+  readonly newLine: Expr | null;
+  readonly increment: Expr | null;
+}
+
+/** `CONT`（単独）。 */
+export interface ContStmt extends NodeBase {
+  readonly kind: 'ContStmt';
+}
+
+/** `TRON`（単独）。 */
+export interface TronStmt extends NodeBase {
+  readonly kind: 'TronStmt';
+}
+
+/** `TROFF`（単独）。 */
+export interface TroffStmt extends NodeBase {
+  readonly kind: 'TroffStmt';
+}
+
+/** `DEGREE`（単独）。角度モードを度数法へ。 */
+export interface DegreeStmt extends NodeBase {
+  readonly kind: 'DegreeStmt';
+}
+
+/** `RADIAN`（単独）。角度モードを弧度法へ。 */
+export interface RadianStmt extends NodeBase {
+  readonly kind: 'RadianStmt';
+}
+
+/** `GRAD`（単独）。角度モードをグラードへ。 */
+export interface GradStmt extends NodeBase {
+  readonly kind: 'GradStmt';
+}
+
+/** `PASS "<パスワード>"`。パスワードは省略不可の文字列。 */
+export interface PassStmt extends NodeBase {
+  readonly kind: 'PassStmt';
+  readonly password: Expr;
+}
+
 /** Phase 1 の文ノード。 */
 export type Stmt =
   | UnsupportedStmt
@@ -432,7 +671,33 @@ export type Stmt =
   | RestoreStmt
   | DimStmt
   | EraseStmt
-  | ClearStmt;
+  | ClearStmt
+  | ClsStmt
+  | LocateStmt
+  | GcursorStmt
+  | PsetStmt
+  | PresetStmt
+  | LineStmt
+  | CircleStmt
+  | PaintStmt
+  | GprintStmt
+  | BeepStmt
+  | WaitStmt
+  | RandomizeStmt
+  | LcopyStmt
+  | RunStmt
+  | ListStmt
+  | NewStmt
+  | AutoStmt
+  | DeleteStmt
+  | RenumStmt
+  | ContStmt
+  | TronStmt
+  | TroffStmt
+  | DegreeStmt
+  | RadianStmt
+  | GradStmt
+  | PassStmt;
 
 /** 1行分（複文はセミコロンでなくコロン区切り、docs/design/phase1_grammar.md「行」節）。 */
 export interface ProgramLine {

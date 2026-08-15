@@ -5,13 +5,20 @@
 import type {
   ArrayRef,
   AssignTarget,
+  AutoStmt,
+  BeepStmt,
   BinaryOp,
   BinaryOperator,
   CaseStmt,
+  CircleStmt,
   ClearStmt,
+  ClsStmt,
+  ContStmt,
   DataStmt,
   DataValue,
   DefaultStmt,
+  DegreeStmt,
+  DeleteStmt,
   DimSpec,
   DimStmt,
   ElseStmt,
@@ -22,8 +29,12 @@ import type {
   Expr,
   ForStmt,
   FunctionCall,
+  GcursorStmt,
   GosubStmt,
   GotoStmt,
+  GprintSegment,
+  GprintStmt,
+  GradStmt,
   IfClause,
   IfLineStmt,
   IfStmt,
@@ -31,34 +42,52 @@ import type {
   InputStmt,
   JumpTarget,
   LabelStmt,
+  LcopyStmt,
   LetAssignment,
   LetStmt,
+  LineStmt,
+  ListStmt,
+  LocateStmt,
+  NewStmt,
   NextStmt,
   NumberLiteral,
   OnGosubStmt,
   OnGotoStmt,
+  PaintStmt,
+  PassStmt,
+  Point,
+  PresetStmt,
   PrintItem,
   PrintSegment,
   PrintStmt,
   ProgramLine,
+  PsetStmt,
+  RadianStmt,
+  RandomizeStmt,
   ReadStmt,
   RemStmt,
+  RenumStmt,
   RepeatStmt,
   RestoreStmt,
   ReturnStmt,
+  RunStmt,
   StopStmt,
   Stmt,
   StringLiteral,
   SwitchStmt,
+  TroffStmt,
+  TronStmt,
   UnaryOp,
   UnaryOperator,
   UnsupportedExpr,
   UnsupportedStmt,
   UntilStmt,
   VariableRef,
+  WaitStmt,
   WendStmt,
   WhileStmt,
 } from './ast.js';
+import type { DrawMode } from '../machine/screen.js';
 import { BasicError, ErrorCode } from './errors.js';
 import { tokenizeProgram } from './tokenizer.js';
 import type { Token, TokenType } from './token.js';
@@ -445,9 +474,11 @@ export function cursorFromTokens(tokens: readonly Token[]): Cursor {
 // SWITCH/CASE/DEFAULT/ENDSWITCH）は AST に畳まない。それぞれ独立した文
 // ノードとして返すだけで、対応関係の解決は実行時の担当（申し送り参照）。
 
-/** 統計・図形系／ダイレクトコマンド系のうち phase 2/3 と判明しているキーワード。
- * 今回のスコープ外の phase 1 キーワード（CLS 等）はここに含めず 'unknown' に落ちる
- * （ast.ts の UnsupportedStmt コメント参照）。
+/** 画面・図形系／ダイレクトコマンド系のうち phase 2/3 と判明しているキーワード。
+ * 画面・図形系（CLS/LOCATE/GCURSOR/PSET/PRESET/LINE/CIRCLE/PAINT/GPRINT/BEEP/
+ * WAIT/RANDOMIZE/LCOPY）とダイレクトコマンド系（RUN/LIST/NEW/AUTO/DELETE/
+ * RENUM/CONT/TRON/TROFF/DEGREE/RADIAN/GRAD/PASS）は phase 1 のためここには
+ * 含めず、parseStatement の switch に個別ケースとして実装した。
  */
 const STATEMENT_PHASE: ReadonlyMap<string, 2 | 3> = new Map<string, 2 | 3>([
   ['CALL', 2],
@@ -857,6 +888,430 @@ function parseOnStmt(cursor: Cursor): OnGotoStmt | OnGosubStmt {
     : { kind: 'OnGotoStmt', selector, targets, pos: startTok.pos };
 }
 
+// ─────────────────────────────────────────────────────────────
+// 画面・図形系／ダイレクトコマンド系の共通ヘルパ
+// ─────────────────────────────────────────────────────────────
+//
+// CIRCLE / BEEP / AUTO / RENUM 等は「引数を空のまま飛ばせる」入れ子の
+// 省略記法を持つ（docs/design 申し送りの「特に注意する点」参照）。
+// 「省略」と「値として0等を指定」を区別するため、各スロットは
+// `Expr | null`（null＝省略）で表現し、以下の共通ヘルパで読む。
+
+/** 現在位置が「このスロットは空のまま飛ばされた」ことを示すか（次がカンマ／`:`／行末）。 */
+function isSlotEmpty(cursor: Cursor): boolean {
+  return cursor.atEnd() || cursor.checkType('colon') || cursor.checkType('rparen') || cursor.checkType('comma');
+}
+
+/** 省略可能な式スロットを読む。空なら null。 */
+function parseOptionalExpr(cursor: Cursor): Expr | null {
+  return isSlotEmpty(cursor) ? null : parseExpression(cursor);
+}
+
+/**
+ * 変数名と紛れる「キーワード的リテラル」（`S`/`R`/`X`、`B`/`BF` 等）を、
+ * 指定された候補と完全一致する identifier トークンとしてのみ消費する。
+ * 【判断】 S/R/X は token.ts の予約語表に無い（変数名 S と綴りが同じになりうる）
+ * ため、この関数を呼ぶ位置（LINE/CIRCLE の決まったスロット）だけで
+ * リテラルとして解釈する。式の途中など他の位置では通常どおり変数として読める。
+ */
+function tryConsumeLiteral(cursor: Cursor, candidates: readonly string[]): string | null {
+  const t = cursor.peek();
+  if (t !== undefined && t.type === 'identifier' && candidates.includes(t.text)) {
+    cursor.next();
+    return t.text;
+  }
+  return null;
+}
+
+/** LINE/CIRCLE 共通の描画モードスロット（`S|R|X`）。空なら null。 */
+function parseOptionalMode(cursor: Cursor, context: string): DrawMode | null {
+  if (isSlotEmpty(cursor)) return null;
+  const lit = tryConsumeLiteral(cursor, ['S', 'R', 'X']);
+  if (lit === null) {
+    const t = cursor.peek();
+    throw new BasicError(
+      ErrorCode.SYNTAX,
+      `${context}: 描画モード "S"/"R"/"X" を期待しましたが ${t ? `"${t.text}"` : '行末'} でした`,
+    );
+  }
+  return lit as DrawMode;
+}
+
+/** LINE の矩形スロット（`B|BF`）。空なら null。 */
+function parseOptionalBox(cursor: Cursor): 'B' | 'BF' | null {
+  if (isSlotEmpty(cursor)) return null;
+  const lit = tryConsumeLiteral(cursor, ['B', 'BF']);
+  if (lit === null) {
+    const t = cursor.peek();
+    throw new BasicError(
+      ErrorCode.SYNTAX,
+      `LINE: "B"/"BF" を期待しましたが ${t ? `"${t.text}"` : '行末'} でした`,
+    );
+  }
+  return lit as 'B' | 'BF';
+}
+
+/** `(<x>,<y>)` の座標1点を読む。GCURSOR/PSET/PRESET/PAINT/LINE/CIRCLE で共用。 */
+function parsePoint(cursor: Cursor): Point {
+  cursor.expectType('lparen', '座標');
+  const x = parseExpression(cursor);
+  cursor.expectType('comma', '座標');
+  const y = parseExpression(cursor);
+  cursor.expectType('rparen', '座標');
+  return { x, y };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 画面・図形系
+// ─────────────────────────────────────────────────────────────
+
+/** `CLS`（単独）。 */
+function parseClsStmt(cursor: Cursor): ClsStmt {
+  const t = cursor.next();
+  return { kind: 'ClsStmt', pos: t.pos };
+}
+
+/**
+ * `LOCATE <桁>[,<行>]`。
+ * 【判断】 yaml summary の「省略した軸は現在位置を維持する」を根拠に、
+ * `LOCATE ,3` のように桁だけを空のまま飛ばす書き方も受理する。
+ */
+function parseLocateStmt(cursor: Cursor): LocateStmt {
+  const startTok = cursor.next(); // LOCATE
+  const col = parseOptionalExpr(cursor);
+  let row: Expr | null = null;
+  if (cursor.checkType('comma')) {
+    cursor.next();
+    row = parseOptionalExpr(cursor);
+  }
+  return { kind: 'LocateStmt', col, row, pos: startTok.pos };
+}
+
+/** `GCURSOR (<x>,<y>)`。両軸とも省略不可。 */
+function parseGcursorStmt(cursor: Cursor): GcursorStmt {
+  const startTok = cursor.next(); // GCURSOR
+  const { x, y } = parsePoint(cursor);
+  return { kind: 'GcursorStmt', x, y, pos: startTok.pos };
+}
+
+/** `PSET (<x>,<y>)[,X]`。 */
+function parsePsetStmt(cursor: Cursor): PsetStmt {
+  const startTok = cursor.next(); // PSET
+  const { x, y } = parsePoint(cursor);
+  let invert = false;
+  if (cursor.checkType('comma')) {
+    cursor.next();
+    const lit = tryConsumeLiteral(cursor, ['X']);
+    if (lit === null) {
+      const t = cursor.peek();
+      throw new BasicError(ErrorCode.SYNTAX, `PSET: "X" を期待しましたが ${t ? `"${t.text}"` : '行末'} でした`);
+    }
+    invert = true;
+  }
+  return { kind: 'PsetStmt', x, y, invert, pos: startTok.pos };
+}
+
+/** `PRESET (<x>,<y>)`。オプション無し。 */
+function parsePresetStmt(cursor: Cursor): PresetStmt {
+  const startTok = cursor.next(); // PRESET
+  const { x, y } = parsePoint(cursor);
+  return { kind: 'PresetStmt', x, y, pos: startTok.pos };
+}
+
+/**
+ * `LINE [(<x1>,<y1>)]-(<x2>,<y2>)[,S|R|X][,<線種>][,B|BF]`。
+ * 始点は次が `(` かどうかで判定する（`-` から始まれば始点省略）。
+ */
+function parseLineStmt(cursor: Cursor): LineStmt {
+  const startTok = cursor.next(); // LINE
+  let from: Point | null = null;
+  if (cursor.checkType('lparen')) {
+    from = parsePoint(cursor);
+  }
+  if (!cursor.checkOperator('-')) {
+    const t = cursor.peek();
+    throw new BasicError(ErrorCode.SYNTAX, `LINE: "-" を期待しましたが ${t ? `"${t.text}"` : '行末'} でした`);
+  }
+  cursor.next(); // '-'
+  const to = parsePoint(cursor);
+
+  let mode: DrawMode | null = null;
+  let lineStyle: Expr | null = null;
+  let box: 'B' | 'BF' | null = null;
+  if (cursor.checkType('comma')) {
+    cursor.next();
+    mode = parseOptionalMode(cursor, 'LINE');
+    if (cursor.checkType('comma')) {
+      cursor.next();
+      lineStyle = parseOptionalExpr(cursor);
+      if (cursor.checkType('comma')) {
+        cursor.next();
+        box = parseOptionalBox(cursor);
+      }
+    }
+  }
+  return { kind: 'LineStmt', from, to, mode, lineStyle, box, pos: startTok.pos };
+}
+
+/**
+ * `CIRCLE (<x>,<y>),<半径>[,[開始角],[終了角],[縦横比][,S|R|X],[パターン]]`。
+ * `CIRCLE(10,10),5,,,,X` のように空のまま飛ばせる（parseOptionalExpr / null で表現）。
+ */
+function parseCircleStmt(cursor: Cursor): CircleStmt {
+  const startTok = cursor.next(); // CIRCLE
+  const { x, y } = parsePoint(cursor);
+  cursor.expectType('comma', 'CIRCLE');
+  const radius = parseExpression(cursor);
+
+  let startAngle: Expr | null = null;
+  let endAngle: Expr | null = null;
+  let aspect: Expr | null = null;
+  let mode: DrawMode | null = null;
+  let pattern: Expr | null = null;
+  if (cursor.checkType('comma')) {
+    cursor.next();
+    startAngle = parseOptionalExpr(cursor);
+    if (cursor.checkType('comma')) {
+      cursor.next();
+      endAngle = parseOptionalExpr(cursor);
+      if (cursor.checkType('comma')) {
+        cursor.next();
+        aspect = parseOptionalExpr(cursor);
+        if (cursor.checkType('comma')) {
+          cursor.next();
+          mode = parseOptionalMode(cursor, 'CIRCLE');
+          if (cursor.checkType('comma')) {
+            cursor.next();
+            pattern = parseOptionalExpr(cursor);
+          }
+        }
+      }
+    }
+  }
+  return { kind: 'CircleStmt', x, y, radius, startAngle, endAngle, aspect, mode, pattern, pos: startTok.pos };
+}
+
+/** `PAINT (<x>,<y>),<パターン>`。パターンは省略不可。 */
+function parsePaintStmt(cursor: Cursor): PaintStmt {
+  const startTok = cursor.next(); // PAINT
+  const { x, y } = parsePoint(cursor);
+  cursor.expectType('comma', 'PAINT');
+  const pattern = parseExpression(cursor);
+  return { kind: 'PaintStmt', x, y, pattern, pos: startTok.pos };
+}
+
+/**
+ * `GPRINT <ビットパターン>[;<ビットパターン>…]` / `GPRINT <文字列>` / 引数なし。
+ * 【判断】 format 本文は `;` 区切りのみだが、yaml notes に「,区切りで1ドット分の
+ * 隙間」ともあるため、PRINT と同じ `,`/`;` どちらの区切りも受理する。
+ */
+function parseGprintStmt(cursor: Cursor): GprintStmt {
+  const startTok = cursor.next(); // GPRINT
+  const items: GprintSegment[] = [];
+  if (cursor.atEnd() || cursor.checkType('colon')) {
+    return { kind: 'GprintStmt', items, pos: startTok.pos };
+  }
+  let pendingSep: ',' | ';' | null = null;
+  for (;;) {
+    const value = parseExpression(cursor);
+    items.push({ sep: pendingSep, value });
+    pendingSep = null;
+    if (cursor.checkType('comma')) {
+      cursor.next();
+      pendingSep = ',';
+    } else if (cursor.checkType('semicolon')) {
+      cursor.next();
+      pendingSep = ';';
+    } else {
+      break;
+    }
+    if (cursor.atEnd() || cursor.checkType('colon')) {
+      break;
+    }
+  }
+  return { kind: 'GprintStmt', items, pos: startTok.pos };
+}
+
+/** `BEEP <回数>[,[<音程>][,<持続時間>]]`。音程・持続時間は個別に省略できる。 */
+function parseBeepStmt(cursor: Cursor): BeepStmt {
+  const startTok = cursor.next(); // BEEP
+  const count = parseExpression(cursor);
+  let pitch: Expr | null = null;
+  let duration: Expr | null = null;
+  if (cursor.checkType('comma')) {
+    cursor.next();
+    pitch = parseOptionalExpr(cursor);
+    if (cursor.checkType('comma')) {
+      cursor.next();
+      duration = parseOptionalExpr(cursor);
+    }
+  }
+  return { kind: 'BeepStmt', count, pitch, duration, pos: startTok.pos };
+}
+
+/** `WAIT [<数値>]`。 */
+function parseWaitStmt(cursor: Cursor): WaitStmt {
+  const startTok = cursor.next(); // WAIT
+  const value = parseOptionalExpr(cursor);
+  return { kind: 'WaitStmt', value, pos: startTok.pos };
+}
+
+/** `RANDOMIZE`（単独）。 */
+function parseRandomizeStmt(cursor: Cursor): RandomizeStmt {
+  const t = cursor.next();
+  return { kind: 'RandomizeStmt', pos: t.pos };
+}
+
+/** `LCOPY <開始行>,<終了行>,<コピー先行>`。3つとも省略不可。 */
+function parseLcopyStmt(cursor: Cursor): LcopyStmt {
+  const startTok = cursor.next(); // LCOPY
+  const fromLine = parseExpression(cursor);
+  cursor.expectType('comma', 'LCOPY');
+  const toLine = parseExpression(cursor);
+  cursor.expectType('comma', 'LCOPY');
+  const destLine = parseExpression(cursor);
+  return { kind: 'LcopyStmt', fromLine, toLine, destLine, pos: startTok.pos };
+}
+
+// ─────────────────────────────────────────────────────────────
+// ダイレクトコマンド系
+// ─────────────────────────────────────────────────────────────
+
+/** `RUN [<行番号>|"<label>"]`。既存の parseTarget（飛び先共通パーサ）を再利用する。 */
+function parseRunStmt(cursor: Cursor): RunStmt {
+  const startTok = cursor.next(); // RUN
+  const target = isSlotEmpty(cursor) ? null : parseTarget(cursor);
+  return { kind: 'RunStmt', target, pos: startTok.pos };
+}
+
+/** `LIST [<行番号>|"<label>"]`。 */
+function parseListStmt(cursor: Cursor): ListStmt {
+  const startTok = cursor.next(); // LIST
+  const target = isSlotEmpty(cursor) ? null : parseTarget(cursor);
+  return { kind: 'ListStmt', target, pos: startTok.pos };
+}
+
+/** `NEW`（単独）。 */
+function parseNewStmt(cursor: Cursor): NewStmt {
+  const t = cursor.next();
+  return { kind: 'NewStmt', pos: t.pos };
+}
+
+/** `AUTO [[<開始行番号>][,<増分>]]`。全省略・開始行のみ・両方指定を許す。 */
+function parseAutoStmt(cursor: Cursor): AutoStmt {
+  const startTok = cursor.next(); // AUTO
+  let startLine: Expr | null = null;
+  let increment: Expr | null = null;
+  if (!isSlotEmpty(cursor)) {
+    startLine = parseOptionalExpr(cursor);
+    if (cursor.checkType('comma')) {
+      cursor.next();
+      increment = parseOptionalExpr(cursor);
+    }
+  }
+  return { kind: 'AutoStmt', startLine, increment, pos: startTok.pos };
+}
+
+/**
+ * 行番号1つを数値リテラルとして読む（一般の式ではなく単一の number トークン）。
+ * 【判断】 DELETE の `100-200` を通常の式パーサ（parseExpression）に渡すと
+ * `-` を減算演算子として食ってしまい `100-200` が「300の引き算結果」になって
+ * 範囲区切りの `-` と衝突する。DELETE の行番号は式ではなく単純な数値のはずなので、
+ * ここだけ number トークン単体を読む専用ヘルパを使う。
+ */
+function parseLineNumberValue(cursor: Cursor): Expr {
+  const tok = cursor.expectType('number', '行番号');
+  return { kind: 'NumberLiteral', value: tok.numberValue ?? Number(tok.text), raw: tok.text, pos: tok.pos };
+}
+
+/**
+ * `DELETE [<行番号>][-][<行番号>]`。単一行／範囲／以降全部／先頭からの
+ * 4パターンを `start`・`end`・`hasDash` で表す（ast.ts の DeleteStmt 参照）。
+ */
+function parseDeleteStmt(cursor: Cursor): DeleteStmt {
+  const startTok = cursor.next(); // DELETE
+  let start: Expr | null = null;
+  let end: Expr | null = null;
+  let hasDash = false;
+  if (!cursor.atEnd() && !cursor.checkType('colon')) {
+    if (!cursor.checkOperator('-')) {
+      start = parseLineNumberValue(cursor);
+    }
+    if (cursor.checkOperator('-')) {
+      cursor.next();
+      hasDash = true;
+      if (!cursor.atEnd() && !cursor.checkType('colon')) {
+        end = parseLineNumberValue(cursor);
+      }
+    }
+  }
+  return { kind: 'DeleteStmt', start, end, hasDash, pos: startTok.pos };
+}
+
+/** `RENUM [<旧行番号>[,<新行番号>][,<増分>]]`。 */
+function parseRenumStmt(cursor: Cursor): RenumStmt {
+  const startTok = cursor.next(); // RENUM
+  let oldLine: Expr | null = null;
+  let newLine: Expr | null = null;
+  let increment: Expr | null = null;
+  if (!cursor.atEnd() && !cursor.checkType('colon')) {
+    oldLine = parseExpression(cursor);
+    if (cursor.checkType('comma')) {
+      cursor.next();
+      newLine = parseOptionalExpr(cursor);
+      if (cursor.checkType('comma')) {
+        cursor.next();
+        increment = parseOptionalExpr(cursor);
+      }
+    }
+  }
+  return { kind: 'RenumStmt', oldLine, newLine, increment, pos: startTok.pos };
+}
+
+/** `CONT`（単独）。 */
+function parseContStmt(cursor: Cursor): ContStmt {
+  const t = cursor.next();
+  return { kind: 'ContStmt', pos: t.pos };
+}
+
+/** `TRON`（単独）。 */
+function parseTronStmt(cursor: Cursor): TronStmt {
+  const t = cursor.next();
+  return { kind: 'TronStmt', pos: t.pos };
+}
+
+/** `TROFF`（単独）。 */
+function parseTroffStmt(cursor: Cursor): TroffStmt {
+  const t = cursor.next();
+  return { kind: 'TroffStmt', pos: t.pos };
+}
+
+/** `DEGREE`（単独）。 */
+function parseDegreeStmt(cursor: Cursor): DegreeStmt {
+  const t = cursor.next();
+  return { kind: 'DegreeStmt', pos: t.pos };
+}
+
+/** `RADIAN`（単独）。 */
+function parseRadianStmt(cursor: Cursor): RadianStmt {
+  const t = cursor.next();
+  return { kind: 'RadianStmt', pos: t.pos };
+}
+
+/** `GRAD`（単独）。 */
+function parseGradStmt(cursor: Cursor): GradStmt {
+  const t = cursor.next();
+  return { kind: 'GradStmt', pos: t.pos };
+}
+
+/** `PASS "<パスワード>"`。パスワードは省略不可の文字列リテラル。 */
+function parsePassStmt(cursor: Cursor): PassStmt {
+  const startTok = cursor.next(); // PASS
+  const tok = cursor.expectType('string', 'PASS のパスワード');
+  const password: Expr = { kind: 'StringLiteral', value: tok.stringValue ?? '', pos: tok.pos };
+  return { kind: 'PassStmt', password, pos: startTok.pos };
+}
+
 /** 未対応の文。残りのトークンは行末（または次の `:`）まで読み飛ばす。 */
 function parseUnsupportedKeywordStmt(cursor: Cursor): UnsupportedStmt {
   const tok = cursor.next();
@@ -1004,6 +1459,58 @@ export function parseStatement(cursor: Cursor): Stmt {
         const node: ClearStmt = { kind: 'ClearStmt', pos: t.pos };
         return node;
       }
+      case 'CLS':
+        return parseClsStmt(cursor);
+      case 'LOCATE':
+        return parseLocateStmt(cursor);
+      case 'GCURSOR':
+        return parseGcursorStmt(cursor);
+      case 'PSET':
+        return parsePsetStmt(cursor);
+      case 'PRESET':
+        return parsePresetStmt(cursor);
+      case 'LINE':
+        return parseLineStmt(cursor);
+      case 'CIRCLE':
+        return parseCircleStmt(cursor);
+      case 'PAINT':
+        return parsePaintStmt(cursor);
+      case 'GPRINT':
+        return parseGprintStmt(cursor);
+      case 'BEEP':
+        return parseBeepStmt(cursor);
+      case 'WAIT':
+        return parseWaitStmt(cursor);
+      case 'RANDOMIZE':
+        return parseRandomizeStmt(cursor);
+      case 'LCOPY':
+        return parseLcopyStmt(cursor);
+      case 'RUN':
+        return parseRunStmt(cursor);
+      case 'LIST':
+        return parseListStmt(cursor);
+      case 'NEW':
+        return parseNewStmt(cursor);
+      case 'AUTO':
+        return parseAutoStmt(cursor);
+      case 'DELETE':
+        return parseDeleteStmt(cursor);
+      case 'RENUM':
+        return parseRenumStmt(cursor);
+      case 'CONT':
+        return parseContStmt(cursor);
+      case 'TRON':
+        return parseTronStmt(cursor);
+      case 'TROFF':
+        return parseTroffStmt(cursor);
+      case 'DEGREE':
+        return parseDegreeStmt(cursor);
+      case 'RADIAN':
+        return parseRadianStmt(cursor);
+      case 'GRAD':
+        return parseGradStmt(cursor);
+      case 'PASS':
+        return parsePassStmt(cursor);
       default:
         return parseUnsupportedKeywordStmt(cursor);
     }

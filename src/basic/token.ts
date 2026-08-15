@@ -34,13 +34,16 @@ export interface Token {
  *   統一されている。ただし SCHEMA.md の指示により予約語は basic_tokens.yaml を
  *   正典とするため、ここでは修正せず yaml の表記のままにしている
  *   （パーサ担当が対応する際にどちらを採用するか判断すること）。
- * - `AUTO` は命令一覧側にのみ存在しトークンが未特定のため、この表には含まれない。
+ * - `AUTO` は命令一覧側にのみ存在し中間コードが basic_tokens.yaml に無いが、
+ *   文パーサ（ダイレクトコマンド系担当）が予約語として認識する必要があるため
+ *   KEYWORDS に追加した。中間コード値は未確定のまま（トークン化時の判定にしか
+ *   使わないため実害はない）。
  *
  * 最長一致でのキーワード判定に使うため、あらかじめ文字列長の降順に並べておく
  * （tokenizer.ts 側で改めてソートしてもよいが、表自体を読みやすい順にしておく）。
  */
 export const KEYWORDS: readonly string[] = [
-  'MON', 'RUN', 'NEW', 'CONT', 'PASS', 'LIST', 'LLIST', 'CLOAD', 'RENUM', 'LOAD',
+  'AUTO', 'MON', 'RUN', 'NEW', 'CONT', 'PASS', 'LIST', 'LLIST', 'CLOAD', 'RENUM', 'LOAD',
   'DELETE', 'FILES', 'LCOPY', 'CSAVE', 'OPEN', 'CLOSE', 'SAVE', 'RANDOMIZE', 'DEGREE',
   'RADIAN', 'GRAD', 'BEEP', 'WAIT', 'GOTO', 'TRON', 'TROFF', 'CLEAR', 'USING', 'DIM',
   'CALL', 'POKE', 'GPRINT', 'PSET', 'PRESET', 'ERASE', 'LFILES', 'KILL', 'OUT',
