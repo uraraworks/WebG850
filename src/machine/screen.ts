@@ -11,6 +11,7 @@
  * セルの左上に詰めて描く（右 1 列・下 1 行が字間／行間の空白）。
  */
 
+import { CIRCLE_ANGLE_MAX, CIRCLE_ANGLE_MIN, CIRCLE_NEGATIVE_ANGLE_MEANS_SECTOR } from '../basic/uncertain.ts';
 import { FONT_GLYPH_HEIGHT, FONT_GLYPH_WIDTH, getGlyph } from './font.ts';
 
 export const SCREEN_WIDTH = 144;
@@ -28,42 +29,18 @@ export type DrawMode = 'S' | 'R' | 'X';
 export type FillPattern = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 // ─────────────────────────────────────────────────────────────
-// CIRCLE の開始角・終了角（不確定仕様）
+// CIRCLE の開始角・終了角の既定値
 //
-// src/basic/uncertain.ts の流儀（暫定値を名前付き定数に集約し、
-// 何を採用したか・なぜかをコメントで明記する）に倣う。src/basic/ 配下は
-// 別担当が編集中のため触れず、参照元となるこのファイル側に集約する。
+// 受理範囲・負角度の意味（不確定仕様）は src/basic/uncertain.ts の
+// `CIRCLE_ANGLE_MIN`/`CIRCLE_ANGLE_MAX`/`CIRCLE_NEGATIVE_ANGLE_MEANS_SECTOR`
+// に集約されている（旧版ではここに直接置かれていたが、並行作業を避けるための
+// 一時的な措置だったため移設した）。
 // ─────────────────────────────────────────────────────────────
 
-/**
- * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` CIRCLE の notes にある通り、
- * 独語マニュアルは開始角・終了角の範囲を「0〜360」、英語マニュアルは「-360〜360
- * （負値は原点から弧への半径線を引き扇形にする。正値は弧のみ）」と記載しており、
- * 両版で食い違っている。しかも独語版自身が載せる実行例
- * `CIRCLE(71,23),20,-45,-135` は負角度を使っており「0〜360」という独語版自身の
- * 記述とすでに矛盾している。
- *
- * 本実装では英語版の記述（範囲 -360〜360、符号で扇形/弧を切替）を暫定採用する。
- * 理由: (1) 独語版は自己矛盾しており範囲記述の信頼性が低い、
- * (2) 英語版は符号の意味（扇形になるか弧のみか）まで具体的に説明しており
- * 情報量が大きい。どちらが実機の実際の受理範囲かは実測でしか確定できないため、
- * `verifiable_by_measurement: true` の通り、後日実測できたらこの節を丸ごと
- * 差し替えること。
- *
- * 参照: docs/spec/basic_commands.yaml の CIRCLE エントリ (notes)
- */
-export const CIRCLE_ANGLE_MIN = -360;
-export const CIRCLE_ANGLE_MAX = 360;
 /** 開始角省略時の既定値。独語・英語共通で「省略時0」。 */
 export const CIRCLE_ANGLE_START_DEFAULT = 0;
 /** 終了角省略時の既定値。独語・英語共通で「省略時360」（全円）。 */
 export const CIRCLE_ANGLE_END_DEFAULT = 360;
-/**
- * 負角度の意味づけ。英語版の記述に従い、開始角・終了角のいずれかが負のとき、
- * 円弧の両端から中心へ半径線を足して扇形にする。独語版にはこの説明が無いため、
- * 独語版準拠に切り替える場合はここを見直すこと。
- */
-export const CIRCLE_NEGATIVE_ANGLE_MEANS_SECTOR = true;
 
 // ─────────────────────────────────────────────────────────────
 // LINE の線種ビットパターン（判断が必要だった箇所。マニュアルには
