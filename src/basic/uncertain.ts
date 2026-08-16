@@ -433,6 +433,13 @@ export const SCROLL_DEFERRED_UNTIL_NEXT_WRITE = true;
  * 非常に小さい LCD では、下線（1ドット行）だと視認性が低く「どこに文字が
  * 入るか」が分かりにくいと判断し、ブロック（セル全体反転）を暫定採用する。
  * 差し替える場合はこの定数だけを変えればよい。
+ *
+ * 【根拠を得た】第三者の使用記録（kyoro205.blog.fc2.com/blog-entry-469.html、
+ * 個人ブログのPC-G850使い方紹介）に「カーソルキーを押すと黒い■のカーソルが
+ * 点滅し、移動させることができる」旨の記述があり、'block' かつ点滅する点は
+ * 裏付けが取れた（verified_by: manual_3rd_party 相当。使用記録でありマニュアル
+ * ではない点に注意）。ただし点滅周期（下記 `CURSOR_BLINK_PERIOD_MS`）は不明のまま。
+ * 詳細は docs/spec/operation_behavior.md 参照。
  */
 export const CURSOR_SHAPE: 'block' | 'underline' = 'block';
 

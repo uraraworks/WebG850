@@ -1558,7 +1558,7 @@ commands:
     verifiable_by_measurement: true
     source: manual_de p.218 / manual_en p.210
     notes: 'ERRORコードの具体的な番号は両版とも記載なし(英語版でも確定せず)。「LISTコマンドはPROモードでのみ受理される」という点は両版で一致して明記されており追記した。関連:
-      LLIST'
+      LLIST。第三者の使用記録(kyoro205.blog.fc2.com/blog-entry-469.html、poke-com.jimdofree.com/sharp-のポケコンを使う/)によれば、LISTは単なる一覧表示ではなく簡易スクリーンエディタで、表示後にカーソルキーでその場編集できる。verified_by: manual_3rd_party相当(使用記録であり編纂マニュアルではない)。詳細はdocs/spec/operation_behavior.md参照。'
   - name: LLIST
     aliases: []
     kind: command
