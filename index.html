@@ -18,6 +18,25 @@
       <canvas id="screen" width="144" height="48"></canvas>
     </main>
 
+    <div class="control-bar">
+      <div class="control-bar__buttons">
+        <button type="button" id="btn-run" class="control-bar__button control-bar__button--run">RUN</button>
+        <button type="button" id="btn-break" class="control-bar__button control-bar__button--break">
+          BREAK
+        </button>
+        <button type="button" id="btn-list" class="control-bar__button">LIST</button>
+      </div>
+      <textarea
+        id="program-input"
+        class="control-bar__editor"
+        spellcheck="false"
+        autocapitalize="off"
+        autocomplete="off"
+        autocorrect="off"
+        rows="8"
+      ></textarea>
+    </div>
+
     <footer class="site-footer">
       <p class="site-footer__rom">
         本エミュレータは <strong>ROM イメージを一切同梱・配布しない独立実装</strong>です。

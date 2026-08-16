@@ -1135,6 +1135,16 @@ export class Interpreter {
     return 'jumped';
   }
 
+  /**
+   * `LIST` の外部公開版。ホスト（`ui/`）の LIST ボタンから、実行状態と無関係に
+   * 現在ロード中のプログラムを画面表示するために使う。
+   * `executeList` を「引数無し LIST」として呼ぶだけで、実行中の PC やスタックには
+   * 一切触れない（`StmtResult` の戻り値もここでは読み捨てる）。
+   */
+  list(): void {
+    this.executeList({ kind: 'ListStmt', target: null, pos: 0 });
+  }
+
   /** `LIST [<行番号>|"<label>"]`。プログラムをテキストへ復元して画面表示する。 */
   private executeList(stmt: Extract<Stmt, { kind: 'ListStmt' }>): StmtResult {
     let startIdx = 0;

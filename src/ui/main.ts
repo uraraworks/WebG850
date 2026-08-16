@@ -1,14 +1,13 @@
 // エントリポイント。
-// machine/screen・ui/canvas の結線に加え、tokenizer→parser→interpreter を通し、
-// 実際に簡単な BASIC プログラムを実行して画面へ出す。
+// machine/screen・ui/canvas の結線に加え、プログラム入力欄と RUN/BREAK/LIST ボタンを
+// 結線する。パース〜実行〜エラー表示の実体は `ui/app.ts` の `App` に持たせてあり、
+// ここでは DOM 要素の取得とイベント配線だけを行う。
 
-import { BUILTINS } from '../basic/functions/index.ts';
-import { Interpreter } from '../basic/interpreter.ts';
-import { parseProgram } from '../basic/parser.ts';
 import { Machine } from '../machine/machine.ts';
 import type { Screen } from '../machine/screen.ts';
+import { App } from './app.ts';
 import { attachCanvas } from './canvas.ts';
-import { Runtime } from './runtime.ts';
+import { isFormControlTarget } from './keyRouting.ts';
 
 const FIRST_ASCII = 0x20;
 const LAST_ASCII = 0x7e;
@@ -52,8 +51,8 @@ function drawTestPattern(screen: Screen): void {
   screen.paint(125, bandTop + 8, 2);
 }
 
-/** 起動時に実行する確認用 BASIC プログラム。テストパターンの後に画面へ流れて出る。 */
-const DEMO_PROGRAM = '10 FOR I=1 TO 5\n20 PRINT I\n30 NEXT I\n40 PRINT "OK"';
+/** プログラム入力欄の初期値。以前の起動時デモ相当の内容をそのまま置く。 */
+const SAMPLE_PROGRAM = '10 FOR I=1 TO 5\n20 PRINT I\n30 NEXT I\n40 PRINT "OK"';
 
 function main(): void {
   // ページ全体のレイアウト（背景色・ヘッダー/フッター配置等）は `src/ui/style.css` に
@@ -61,6 +60,16 @@ function main(): void {
   const canvas = document.querySelector<HTMLCanvasElement>('#screen');
   if (canvas === null) {
     throw new Error('#screen canvas が見つかりません');
+  }
+  const programInput = document.querySelector<HTMLTextAreaElement>('#program-input');
+  if (programInput === null) {
+    throw new Error('#program-input が見つかりません');
+  }
+  const runButton = document.querySelector<HTMLButtonElement>('#btn-run');
+  const breakButton = document.querySelector<HTMLButtonElement>('#btn-break');
+  const listButton = document.querySelector<HTMLButtonElement>('#btn-list');
+  if (runButton === null || breakButton === null || listButton === null) {
+    throw new Error('操作ボタン（RUN/BREAK/LIST）が見つかりません');
   }
 
   const machine = new Machine();
@@ -70,11 +79,23 @@ function main(): void {
   render();
   window.addEventListener('resize', resize);
 
-  window.addEventListener('keydown', (e) => machine.keyboard.handleKeyDown(e));
-  window.addEventListener('keyup', (e) => machine.keyboard.handleKeyUp(e));
+  // キー入力の行き先分離（依頼「3.」）：プログラム入力欄や RUN/BREAK/LIST ボタンに
+  // フォーカスがあるあいだの打鍵は、`isFormControlTarget` で弾いてエミュレータへ
+  // 渡さない。それ以外（ページ本体・canvas 等にフォーカスがある状態）の打鍵は
+  // 従来どおり `machine.keyboard` へ渡し、INPUT/INKEY$ が正しく受け取れるようにする。
+  window.addEventListener('keydown', (e) => {
+    if (isFormControlTarget(e.target)) return;
+    machine.keyboard.handleKeyDown(e);
+  });
+  window.addEventListener('keyup', (e) => {
+    if (isFormControlTarget(e.target)) return;
+    machine.keyboard.handleKeyUp(e);
+  });
 
   // AudioContext はユーザー操作（クリック・キー押下等）のイベントハンドラの中でしか
   // 生成できないブラウザがあるため、最初の操作で一度だけ接続する。
+  // （入力欄への打鍵やボタンのクリックも「ユーザー操作」であることに変わりはないため、
+  // ここは `isFormControlTarget` によるフィルタを掛けない。）
   let audioAttached = false;
   const attachAudioOnce = (): void => {
     if (audioAttached) return;
@@ -84,17 +105,25 @@ function main(): void {
   window.addEventListener('keydown', attachAudioOnce, { once: true });
   window.addEventListener('click', attachAudioOnce, { once: true });
 
-  const program = parseProgram(DEMO_PROGRAM);
-  const interpreter = new Interpreter(program, machine, BUILTINS);
+  const app = new App(machine, { render });
+
+  programInput.value = SAMPLE_PROGRAM;
+
+  runButton.addEventListener('click', () => {
+    app.run(programInput.value);
+  });
+  breakButton.addEventListener('click', () => {
+    app.break();
+  });
+  listButton.addEventListener('click', () => {
+    app.list();
+  });
 
   // テストパターンは起動時のセルフチェック用に一瞬だけ表示する。BASIC の実行結果と
   // 混ざって読めなくなるのを避けるため、プログラム実行前に画面を消す
-  // （依頼指示「プログラム実行前に画面を消すこと」）。
-  machine.screen.cls();
-  render();
-
-  const runtime = new Runtime(interpreter, machine.keyboard, { render });
-  runtime.start();
+  // （依頼指示「プログラム実行前に画面を消すこと」）。App.run が内部で
+  // `machine.screen.cls()` を呼ぶため、ここでは明示的な cls() は不要。
+  app.run(SAMPLE_PROGRAM);
 }
 
 main();

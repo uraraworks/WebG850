@@ -113,6 +113,18 @@ export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen): CanvasB
    * 求められる。値は旧実装（伸ばした .screen-area の clientHeight）とほぼ
    * 一致する——伸ばしていたときの高さも結局「ビューポート − ヘッダー −
    * フッター」だったため。
+   *
+   * 【判断した点・理由】 プログラム入力欄・RUN/BREAK/LIST ボタン（`.control-bar`）を
+   * 追加したことで、兄弟要素の合計高さがビューポート高さに迫る／超えることが
+   * 普通に起こるようになった（`.control-bar` が LCD の直後の兄弟として増えたため）。
+   * このとき兄弟差し引き後の残り高さが極端に小さい正の値（例:
+   * 数十px）になり、そのまま使うと LCD が意図せず最低倍率（等倍）まで
+   * 潰れてしまう。「巨大な空白を防ぐ」という本来の目的は、ページ全体が
+   * 常にビューポート内に収まることを前提にしていたが、入力欄追加でページは
+   * 元々スクロールする前提に変わっている。そのため、残り高さが
+   * `MIN_AVAILABLE_HEIGHT`（≒倍率2を確保できる高さ）を下回るときは
+   * 「収める」計算を諦め、`window.innerHeight` をそのまま使う
+   * （＝主に幅で倍率が決まる。スクロールが増えるだけで、LCD が潰れるよりまし）。
    */
   function computeAvailableHeight(parent: HTMLElement | null): number {
     if (parent === null) {
@@ -133,7 +145,8 @@ export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen): CanvasB
     ) {
       height -= sibling.getBoundingClientRect().height;
     }
-    return height > 0 ? height : window.innerHeight || SCREEN_HEIGHT * DEFAULT_SCALE;
+    const MIN_AVAILABLE_HEIGHT = SCREEN_HEIGHT * 2;
+    return height >= MIN_AVAILABLE_HEIGHT ? height : window.innerHeight || SCREEN_HEIGHT * DEFAULT_SCALE;
   }
 
   function render(): void {

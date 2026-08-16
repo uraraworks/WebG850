@@ -88,7 +88,7 @@ import type {
   WhileStmt,
 } from './ast.js';
 import type { DrawMode } from '../machine/screen.js';
-import { BasicError, ErrorCode } from './errors.js';
+import { BasicError, ErrorCode, UnsupportedError } from './errors.js';
 import { tokenizeProgram } from './tokenizer.js';
 import type { Token, TokenType } from './token.js';
 import {
@@ -1563,7 +1563,22 @@ export function parseStatementList(cursor: Cursor): Stmt[] {
 export function parseProgram(source: string): ProgramLine[] {
   return tokenizeProgram(source).map((line) => {
     const cursor = new Cursor(line.tokens, line.text);
-    const statements = parseStatementList(cursor);
-    return { lineNumber: line.lineNumber, statements };
+    try {
+      const statements = parseStatementList(cursor);
+      return { lineNumber: line.lineNumber, statements };
+    } catch (e) {
+      // パース時点のエラー（構文エラー・未実装命令）には行番号が付いていないことが
+      // 多い（各文パーサは自分がどの行にいるか知らないため）。ここで初めて
+      // 「どの行を処理していたか」が分かるので、未設定なら埋めて投げ直す。
+      // ホスト側（`ui/`）が「何行目で何が起きたか」を表示できるようにするため
+      // （依頼「4. エラーの見せ方」）。
+      if (e instanceof BasicError && e.lineNumber === undefined) {
+        throw new BasicError(e.code, e.message, line.lineNumber ?? undefined);
+      }
+      if (e instanceof UnsupportedError && e.lineNumber === undefined) {
+        throw new UnsupportedError(e.name_, line.lineNumber ?? undefined);
+      }
+      throw e;
+    }
   });
 }
