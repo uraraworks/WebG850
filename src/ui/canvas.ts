@@ -51,16 +51,40 @@ const DOT_ON_RGB = hexToRgb(DOT_ON_COLOR);
 const DOT_OFF_RGB = hexToRgb(DOT_OFF_COLOR);
 
 /**
- * 利用可能な幅・高さから、144×48 を整数倍で収められる最大の倍率を返す。
+ * 高さによる縮小を検討する閾値（ビューポート高さ）。
+ *
+ * ページはスクロールしてよい前提のため、通常は高さで倍率を制限しない
+ * （倍率は幅と `MAX_SCALE` だけで決める）。高さで縮小するのは、この閾値を
+ * 下回るとき——横向きスマートフォンのような「そもそも縦が極端に狭い」
+ * 画面に限る。500px はスマートフォンの横向き実寸（多くの機種で 375〜430px）
+ * より一回り大きく、通常のデスクトップ／タブレット（800px 以上）には
+ * 影響しない値として選んだ。
+ */
+export const HEIGHT_CONSTRAINT_THRESHOLD = 500;
+
+/**
+ * 利用可能な幅から、144×48 を整数倍で収められる最大の倍率を返す。
  * 収まらない場合でも最低 1 倍は保証する（等倍未満に縮小しない）。
  * 上限は `MAX_SCALE`（広い画面で看板のように大写しになるのを防ぐ）。
+ *
+ * 高さは「最後の手段」として扱う。ページはスクロールしてよいので、
+ * `availableHeight` が `HEIGHT_CONSTRAINT_THRESHOLD` 以上ある通常のケースでは
+ * 高さによる縮小を一切行わない（操作バー・入力欄が縦を消費しても LCD は潰さない）。
+ * 横向きスマートフォンのように高さそのものが極端に狭いときだけ、高さでも
+ * 頭打ちにする。
  */
 export function computeScale(availableWidth: number, availableHeight: number): number {
   const maxByWidth = Math.floor(availableWidth / SCREEN_WIDTH);
-  const maxByHeight = Math.floor(availableHeight / SCREEN_HEIGHT);
-  const scale = Math.min(maxByWidth, maxByHeight);
-  if (!Number.isFinite(scale) || scale < 1) return 1;
-  return Math.min(scale, MAX_SCALE);
+  let scale = Number.isFinite(maxByWidth) && maxByWidth >= 1 ? maxByWidth : 1;
+  scale = Math.min(scale, MAX_SCALE);
+
+  if (Number.isFinite(availableHeight) && availableHeight < HEIGHT_CONSTRAINT_THRESHOLD) {
+    const maxByHeight = Math.floor(availableHeight / SCREEN_HEIGHT);
+    if (Number.isFinite(maxByHeight) && maxByHeight >= 1) {
+      scale = Math.min(scale, maxByHeight);
+    }
+  }
+  return scale;
 }
 
 export interface CanvasBinding {
@@ -86,67 +110,31 @@ export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen): CanvasB
   const ctx: CanvasRenderingContext2D = ctx2d;
   const imageData = ctx.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
 
+  /**
+   * 表示倍率を、親要素の幅と `window.innerHeight` から再計算する。
+   *
+   * 【判断した点・理由】 以前は「ビューポート高さ − ヘッダー・フッター等の兄弟要素の
+   * 実測高さ合計」を『利用可能な高さ』として求め、`computeScale` に渡していた
+   * （ページを常にビューポート内に収める設計だった）。しかしプログラム入力欄・
+   * RUN/BREAK/LIST ボタン（`.control-bar`）を追加したことで兄弟要素の合計高さが
+   * ビューポート高さに迫る／超えるようになり、差し引き後の残り高さが数十px という
+   * 極端な値になって LCD が意図せず低倍率（2倍程度）まで潰れる回帰を起こした。
+   *
+   * ページはスクロールしてよい前提に変わっているため、高さで倍率を決めるのは
+   * 本末転倒（`computeScale` のコメント参照）。ここでは `window.innerHeight` を
+   * そのまま `computeScale` に渡し、通常は幅と `MAX_SCALE` だけで倍率が決まる
+   * ようにする。高さそのものが極端に狭い（横向きスマートフォンなど、
+   * `HEIGHT_CONSTRAINT_THRESHOLD` 未満の）場合にだけ `computeScale` 内部で
+   * 高さによる頭打ちが働く。兄弟要素の実測（`getBoundingClientRect`）による
+   * 「残り高さ」計算は不要になったため削除した。
+   */
   function resize(): void {
     const parent = canvas.parentElement;
     const availableWidth = parent?.clientWidth || window.innerWidth || SCREEN_WIDTH * DEFAULT_SCALE;
-    const availableHeight = computeAvailableHeight(parent);
+    const availableHeight = window.innerHeight || SCREEN_HEIGHT * DEFAULT_SCALE;
     const scale = computeScale(availableWidth, availableHeight) || DEFAULT_SCALE;
     canvas.style.width = `${SCREEN_WIDTH * scale}px`;
     canvas.style.height = `${SCREEN_HEIGHT * scale}px`;
-  }
-
-  /**
-   * 「利用可能な高さ」を、親要素（`.screen-area`）自身の clientHeight ではなく、
-   * window.innerHeight から前後の兄弟要素（ヘッダー・フッター）の実測高さを
-   * 差し引いて求める。
-   *
-   * 【判断した点・理由】 以前は親要素に `flex: 1 0 auto` を掛けて画面いっぱいに
-   * 伸ばし、その clientHeight をそのまま利用可能高さとして使っていた。しかし
-   * この「伸ばす」こと自体が、狭い縦長画面で LCD の下（または上）に巨大な
-   * 空白を生む原因だった（`style.css` の `.screen-area` コメント参照）。
-   * 親要素を伸ばさずに内容サイズへ戻すと、今度は clientHeight が LCD 自身の
-   * 現在サイズに依存する循環参照になってしまう（縮めると高さが小さく測定され、
-   * 常に低倍率に固定される）。
-   *
-   * 兄弟要素の実測高さは LCD のサイズと無関係に決まる（ヘッダー・フッターの
-   * 内容で決まる）ため、これを使えば循環せずに「本来使ってよい高さ」を
-   * 求められる。値は旧実装（伸ばした .screen-area の clientHeight）とほぼ
-   * 一致する——伸ばしていたときの高さも結局「ビューポート − ヘッダー −
-   * フッター」だったため。
-   *
-   * 【判断した点・理由】 プログラム入力欄・RUN/BREAK/LIST ボタン（`.control-bar`）を
-   * 追加したことで、兄弟要素の合計高さがビューポート高さに迫る／超えることが
-   * 普通に起こるようになった（`.control-bar` が LCD の直後の兄弟として増えたため）。
-   * このとき兄弟差し引き後の残り高さが極端に小さい正の値（例:
-   * 数十px）になり、そのまま使うと LCD が意図せず最低倍率（等倍）まで
-   * 潰れてしまう。「巨大な空白を防ぐ」という本来の目的は、ページ全体が
-   * 常にビューポート内に収まることを前提にしていたが、入力欄追加でページは
-   * 元々スクロールする前提に変わっている。そのため、残り高さが
-   * `MIN_AVAILABLE_HEIGHT`（≒倍率2を確保できる高さ）を下回るときは
-   * 「収める」計算を諦め、`window.innerHeight` をそのまま使う
-   * （＝主に幅で倍率が決まる。スクロールが増えるだけで、LCD が潰れるよりまし）。
-   */
-  function computeAvailableHeight(parent: HTMLElement | null): number {
-    if (parent === null) {
-      return window.innerHeight || SCREEN_HEIGHT * DEFAULT_SCALE;
-    }
-    let height = window.innerHeight;
-    for (
-      let sibling = parent.previousElementSibling;
-      sibling !== null;
-      sibling = sibling.previousElementSibling
-    ) {
-      height -= sibling.getBoundingClientRect().height;
-    }
-    for (
-      let sibling = parent.nextElementSibling;
-      sibling !== null;
-      sibling = sibling.nextElementSibling
-    ) {
-      height -= sibling.getBoundingClientRect().height;
-    }
-    const MIN_AVAILABLE_HEIGHT = SCREEN_HEIGHT * 2;
-    return height >= MIN_AVAILABLE_HEIGHT ? height : window.innerHeight || SCREEN_HEIGHT * DEFAULT_SCALE;
   }
 
   function render(): void {
