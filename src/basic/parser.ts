@@ -954,20 +954,6 @@ function parseOptionalMode(cursor: Cursor, context: string): DrawMode | null {
   return lit as DrawMode;
 }
 
-/** LINE の矩形スロット（`B|BF`）。空なら null。 */
-function parseOptionalBox(cursor: Cursor): 'B' | 'BF' | null {
-  if (isSlotEmpty(cursor)) return null;
-  const lit = tryConsumeLiteral(cursor, ['B', 'BF']);
-  if (lit === null) {
-    const t = cursor.peek();
-    throw new BasicError(
-      ErrorCode.SYNTAX,
-      `LINE: "B"/"BF" を期待しましたが ${t ? `"${t.text}"` : '行末'} でした`,
-    );
-  }
-  return lit as 'B' | 'BF';
-}
-
 /** `(<x>,<y>)` の座標1点を読む。GCURSOR/PSET/PRESET/PAINT/LINE/CIRCLE で共用。 */
 function parsePoint(cursor: Cursor): Point {
   cursor.expectType('lparen', '座標');
@@ -1038,6 +1024,14 @@ function parsePresetStmt(cursor: Cursor): PresetStmt {
 /**
  * `LINE [(<x1>,<y1>)]-(<x2>,<y2>)[,S|R|X][,<線種>][,B|BF]`。
  * 始点は次が `(` かどうかで判定する（`-` から始まれば始点省略）。
+ *
+ * 末尾の3スロット（モード／線種／矩形）は仕様書上は位置固定だが、
+ * 【不確定仕様】 実在作品コーパスの計測では `LINE (x1,y1)-(x2,y2),B` のように
+ * モード・線種スロットのプレースホルダのカンマを省かず矩形だけを直接1個の
+ * カンマで指定する書き方が複数件確認できた（`LINE_TRAILING_SLOTS_BY_CONTENT`
+ * として `uncertain.ts` に集約）。位置ではなくトークンの内容
+ * （`S`/`R`/`X` はモード、`B`/`BF` は矩形、それ以外は式として線種）で
+ * スロットを判定することで両方の書き方を受理する。
  */
 function parseLineStmt(cursor: Cursor): LineStmt {
   const startTok = cursor.next(); // LINE
@@ -1055,17 +1049,35 @@ function parseLineStmt(cursor: Cursor): LineStmt {
   let mode: DrawMode | null = null;
   let lineStyle: Expr | null = null;
   let box: 'B' | 'BF' | null = null;
-  if (cursor.checkType('comma')) {
-    cursor.next();
-    mode = parseOptionalMode(cursor, 'LINE');
-    if (cursor.checkType('comma')) {
-      cursor.next();
-      lineStyle = parseOptionalExpr(cursor);
-      if (cursor.checkType('comma')) {
-        cursor.next();
-        box = parseOptionalBox(cursor);
-      }
+  let usedFlexibleSlot = false;
+  for (let slot = 0; slot < 3 && cursor.checkType('comma'); slot++) {
+    cursor.next(); // ','
+    if (isSlotEmpty(cursor)) {
+      continue;
     }
+    const lit = tryConsumeLiteral(cursor, ['S', 'R', 'X', 'B', 'BF']);
+    if (lit === 'S' || lit === 'R' || lit === 'X') {
+      if (mode !== null) {
+        throw new BasicError(ErrorCode.SYNTAX, `LINE: 描画モードが2回指定されています: "${lit}"`);
+      }
+      if (slot !== 0) usedFlexibleSlot = true;
+      mode = lit as DrawMode;
+    } else if (lit === 'B' || lit === 'BF') {
+      if (box !== null) {
+        throw new BasicError(ErrorCode.SYNTAX, `LINE: 矩形指定が2回指定されています: "${lit}"`);
+      }
+      if (slot !== 2) usedFlexibleSlot = true;
+      box = lit as 'B' | 'BF';
+    } else {
+      if (lineStyle !== null) {
+        throw new BasicError(ErrorCode.SYNTAX, `LINE: 線種が2回指定されています`);
+      }
+      if (slot !== 1) usedFlexibleSlot = true;
+      lineStyle = parseExpression(cursor);
+    }
+  }
+  if (usedFlexibleSlot) {
+    markUncertainUsed('LINE_TRAILING_SLOTS_BY_CONTENT');
   }
   return { kind: 'LineStmt', from, to, mode, lineStyle, box, pos: startTok.pos };
 }

@@ -34,7 +34,8 @@ export type UncertainId =
   | 'ERROR_PREFIX_QUESTION_MARK'
   | 'INITIAL_BASIC_MODE'
   | 'IMPLICIT_THEN'
-  | 'UNPARENTHESIZED_CALL_BINDING';
+  | 'UNPARENTHESIZED_CALL_BINDING'
+  | 'LINE_TRAILING_SLOTS_BY_CONTENT';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -643,3 +644,30 @@ export const IMPLICIT_THEN_NOTE = 'THEN省略は実在作品31本の計測(IF 10
  */
 export const UNPARENTHESIZED_CALL_BINDING_NOTE =
   '括弧なし引数は単項/一次式レベル(#1-3)までしか読まない。根拠は実在作品31本の計測(複合式には括弧を付ける慣行)';
+
+// ─────────────────────────────────────────────────────────────
+// LINE 末尾3スロット（モード／線種／矩形）の判定基準
+// ─────────────────────────────────────────────────────────────
+//
+// 実装は src/basic/parser.ts の parseLineStmt。
+
+/**
+ * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` の LINE は
+ * `format: LINE [(<x1>,<y1>)]-(<x2>,<y2>)[,S|R|X][,<線種>][,B|BF]` と、
+ * モード→線種→矩形の3スロットが位置固定である書式のみを記載している。
+ * この書式に厳密に従うと、モードと線種を省略して矩形だけ指定したい場合は
+ * `,,,B`（空スロットぶんのカンマを毎回打つ）が必須になるはずだが、
+ * 実在作品31本の計測では `LINE (x1,y1)-(x2,y2),B` のように空スロットの
+ * カンマを省き、1個のカンマの直後に矩形指定を直接書く用例が複数件見つかった。
+ *
+ * マニュアルの位置固定書式と実際の使用実態が食い違うため、位置ではなく
+ * **トークンの内容**（`S`/`R`/`X` はモード、`B`/`BF` は矩形、それ以外は式として
+ * 線種）でスロットを判定する方式に変更した。位置固定の書き方（`,,,B` 等）も
+ * 内容判定と矛盾しないためそのまま動く。実測でモード/矩形が同時に複数回
+ * 現れることは無かったため、同じ種類のスロットが2回現れた場合は構文エラーに
+ * している（無言で片方を無視すると入力ミスに気づけないため）。
+ *
+ * 参照: docs/spec/basic_commands.yaml の LINE エントリ (format)
+ */
+export const LINE_TRAILING_SLOTS_BY_CONTENT_NOTE =
+  'LINE末尾3スロット(モード/線種/矩形)は位置ではなくトークン内容で判定する。根拠は実在作品31本の計測(空スロットのカンマを省いてB/BFを直接書く用例)';

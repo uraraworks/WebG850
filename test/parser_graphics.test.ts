@@ -63,6 +63,36 @@ describe('LINE', () => {
     expect(stmt.mode).toBe('R');
     expect(stmt.lineStyle).toMatchObject({ kind: 'NumberLiteral' });
   });
+
+  describe('末尾スロット（モード/線種/矩形）を内容で判定（不確定仕様 LINE_TRAILING_SLOTS_BY_CONTENT）', () => {
+    it(',B のように空スロットのカンマを省いて矩形だけ直接指定できる', () => {
+      const [stmt] = parseLine('LINE(0,0)-(10,20),B') as [LineStmt];
+      expect(stmt.mode).toBeNull();
+      expect(stmt.lineStyle).toBeNull();
+      expect(stmt.box).toBe('B');
+    });
+
+    it(',BF のように空スロットのカンマを省いて矩形だけ直接指定できる', () => {
+      const [stmt] = parseLine('LINE(0,0)-(10,20),BF') as [LineStmt];
+      expect(stmt.box).toBe('BF');
+    });
+
+    it(',,B（モードだけ空スロット）でも矩形として読める（線種の変数参照に誤読しない）', () => {
+      const [stmt] = parseLine('LINE(0,0)-(10,20),,B') as [LineStmt];
+      expect(stmt.mode).toBeNull();
+      expect(stmt.lineStyle).toBeNull();
+      expect(stmt.box).toBe('B');
+    });
+
+    it('モードスロットに矩形指定を書いても矩形として読める（,B,,のような並び）', () => {
+      const [stmt] = parseLine('LINE(0,0)-(10,20),B,,') as [LineStmt];
+      expect(stmt.box).toBe('B');
+    });
+
+    it('同じ種類のスロットが2回現れたら構文エラー', () => {
+      expect(() => parseLine('LINE(0,0)-(10,20),B,,BF')).toThrow();
+    });
+  });
 });
 
 describe('CIRCLE', () => {

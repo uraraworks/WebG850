@@ -94,4 +94,21 @@ describe('tokenize', () => {
     const tokens = tokenize('1.5 1.5E10 1E+3 1E-3');
     expect(tokens.map((t) => t.numberValue)).toEqual([1.5, 1.5e10, 1e3, 1e-3]);
   });
+
+  it('整数部を省略した小数リテラル（.5）は 0.5 と等価に読める', () => {
+    const tokens = tokenize('.5 0.5');
+    expect(tokens.map((t) => t.type)).toEqual(['number', 'number']);
+    expect(tokens.map((t) => t.numberValue)).toEqual([0.5, 0.5]);
+  });
+
+  it('識別子中のドット（A.B）は数値リテラルへ誤読しない', () => {
+    // ドットの直後が数字のときだけ数値リテラルとして扱う。A.B は従来どおり
+    // identifier "A" / operator "." / identifier "B" に分かれる。
+    const tokens = tokenize('A.B');
+    expect(tokens.map((t) => [t.type, t.text])).toEqual([
+      ['identifier', 'A'],
+      ['operator', '.'],
+      ['identifier', 'B'],
+    ]);
+  });
 });
