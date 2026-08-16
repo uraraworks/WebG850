@@ -1,0 +1,130 @@
+/**
+ * WebG850 のページ全体のスタイル。
+ *
+ * 方針：白基調（WebMSX を意識した、白い紙面にエミュレータ画面を置く佇まい）。
+ * LCD 自体の配色（`DOT_ON_COLOR` / `DOT_OFF_COLOR`、`src/ui/canvas.ts`）はここでは
+ * 一切触らない。ダークモード自動切替（`prefers-color-scheme`）も入れない
+ * （白基調で統一する方針のため）。
+ *
+ * 【判断した点・理由】 スマートフォンでの横スクロール防止のため、`box-sizing: border-box`
+ * を全要素に適用し、幅方向は `100%` と `padding` の組み合わせで完結させている
+ * （固定 px 幅を極力使わない）。LCD の縁取り（筐体）は `box-shadow` で表現した。
+ * `box-shadow` はレイアウトサイズに影響しない（描画のみ）ため、`canvas.ts` の
+ * 「利用可能幅からスケールを計算する」ロジックを縁取りの太さ分だけ狂わせる心配がない。
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  background: #f2f1ec;
+  color: #2b2b28;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', 'Segoe UI', sans-serif;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ヘッダー */
+
+.site-header {
+  padding: 1.5rem 1rem 1rem;
+  text-align: center;
+}
+
+.site-header h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.8rem;
+  letter-spacing: 0.03em;
+  color: #1a1a17;
+}
+
+.site-header__subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #5a594f;
+}
+
+/* LCD 表示エリア */
+
+.screen-area {
+  flex: 1 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 1.5rem 1rem;
+}
+
+#screen {
+  display: block;
+  image-rendering: pixelated;
+  /*
+   * 実機の筐体を思わせる縁取り。box-shadow はレイアウトサイズに影響しないため、
+   * canvas.ts の利用可能幅計算（親要素の clientWidth 基準）に干渉しない。
+   *
+   * 【判断した点・理由】 縁の太さ（spread 合計 6px）は `.screen-area` の左右
+   * padding（狭い画面でも 1rem = 16px）より確実に小さくした。canvas は
+   * 親の clientWidth を超えない幅に収まる設計だが、その幅は padding を含んだ
+   * 値のため、理論上 canvas が padding 領域いっぱいまで広がるケースがある。
+   * 縁取りがその padding を超えないようにして、どんな画面幅でも横スクロールが
+   * 出ないようにしている。
+   */
+  box-shadow:
+    0 0 0 4px #3a3a36,
+    0 0 0 6px #7d7c72,
+    0 3px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+/* フッター */
+
+.site-footer {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 1.5rem 1rem 2rem;
+  border-top: 1px solid #dedcd2;
+  background: #ecebe4;
+  font-size: 0.8rem;
+  color: #55544a;
+  text-align: center;
+}
+
+.site-footer p {
+  max-width: 640px;
+  margin: 0.5rem auto;
+}
+
+.site-footer__rom {
+  color: #2b2b28;
+}
+
+.site-footer__rom-en {
+  font-style: italic;
+  color: #6b6a60;
+}
+
+.site-footer__links a {
+  color: #2b2b28;
+  text-decoration: underline;
+}
+
+.site-footer code {
+  background: #dedcd2;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  font-size: 0.85em;
+}

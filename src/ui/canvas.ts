@@ -23,8 +23,14 @@ export const DEFAULT_SCALE = 4;
 export const DOT_ON_COLOR = '#1a1a1a';
 /** LCD の消灯ドット色（薄いがページ背景とは区別できる色）。 */
 export const DOT_OFF_COLOR = '#9ead86';
-/** ページ背景色。消灯ドット色とは別の色にして、キャンバスの境界が分かるようにする。 */
-export const PAGE_BACKGROUND_COLOR = '#2b2b2b';
+/**
+ * ページ背景色。消灯ドット色とは別の色にして、キャンバスの境界が分かるようにする。
+ *
+ * 白基調のページデザイン（`src/ui/style.css`）に合わせた、ごく薄いグレー。
+ * 純白にしないのは、LCD 周りの縁取り（筐体）との境界を保ち、長時間の閲覧でも
+ * 目が疲れにくくするため。
+ */
+export const PAGE_BACKGROUND_COLOR = '#f2f1ec';
 
 function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.replace('#', ''), 16);

@@ -7,7 +7,7 @@ import { Interpreter } from '../basic/interpreter.ts';
 import { parseProgram } from '../basic/parser.ts';
 import { Machine } from '../machine/machine.ts';
 import type { Screen } from '../machine/screen.ts';
-import { attachCanvas, PAGE_BACKGROUND_COLOR } from './canvas.ts';
+import { attachCanvas } from './canvas.ts';
 import { Runtime } from './runtime.ts';
 
 const FIRST_ASCII = 0x20;
@@ -56,13 +56,8 @@ function drawTestPattern(screen: Screen): void {
 const DEMO_PROGRAM = '10 FOR I=1 TO 5\n20 PRINT I\n30 NEXT I\n40 PRINT "OK"';
 
 function main(): void {
-  document.body.style.background = PAGE_BACKGROUND_COLOR;
-  document.body.style.display = 'flex';
-  document.body.style.justifyContent = 'center';
-  document.body.style.alignItems = 'center';
-  document.body.style.minHeight = '100vh';
-  document.body.style.margin = '0';
-
+  // ページ全体のレイアウト（背景色・ヘッダー/フッター配置等）は `src/ui/style.css` に
+  // 委譲する。ここでは canvas の結線のみを行う。
   const canvas = document.querySelector<HTMLCanvasElement>('#screen');
   if (canvas === null) {
     throw new Error('#screen canvas が見つかりません');

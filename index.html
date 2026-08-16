@@ -4,9 +4,42 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebG850</title>
+    <link rel="stylesheet" href="/src/ui/style.css" />
   </head>
   <body>
-    <canvas id="screen" width="144" height="48"></canvas>
+    <header class="site-header">
+      <h1>WebG850</h1>
+      <p class="site-header__subtitle">
+        シャープ <strong>PC-G850V / PC-G850VS</strong> 互換 BASIC の Web エミュレータ
+      </p>
+    </header>
+
+    <main class="screen-area">
+      <canvas id="screen" width="144" height="48"></canvas>
+    </main>
+
+    <footer class="site-footer">
+      <p class="site-footer__rom">
+        本エミュレータは <strong>ROM イメージを一切同梱・配布しない独立実装</strong>です。
+        文字の字形（フォント）も ROM から吸い出さず、自作しています。
+      </p>
+      <p class="site-footer__rom-en" lang="en">
+        This is a clean-room implementation: it does not include, distribute, or reference any
+        ROM image.
+      </p>
+      <p class="site-footer__status">
+        現在は <strong>Phase 1（互換 BASIC インタプリタ）</strong>の段階です。未実装の命令に
+        実行が到達すると <code>?UNSUPPORTED</code> と表示して停止します。動かない作品があれば
+        ぜひご報告ください。
+      </p>
+      <p class="site-footer__links">
+        <a href="https://github.com/uraraworks/WebG850" target="_blank" rel="noopener noreferrer"
+          >GitHub リポジトリ</a
+        >
+        ・ MIT License
+      </p>
+    </footer>
+
     <script type="module" src="/src/ui/main.ts"></script>
   </body>
 </html>
