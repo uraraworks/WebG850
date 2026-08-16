@@ -42,6 +42,23 @@ export class DirectMode {
   private interpreter: Interpreter;
   private runtime: Runtime | null = null;
 
+  /**
+   * ダイレクト実行（RUN/LIST/NEW を含む）を「Enter を押した／`runCommand` を
+   * 呼んだ瞬間」から「`onDirectEnd` で完了する瞬間」まで true にするフラグ。
+   *
+   * 【判断した点・理由】 以前は `isRunning()` が `Interpreter.running` を
+   * そのまま返していたが、この値はジェネレータ（`coreLoop`）の本体が実際に
+   * 動き出すまで（＝`Runtime` が rAF で最初のフレームを回すまで）true に
+   * ならない。そのため「NEW を Enter した直後、まだ1フレームも進んでいない間」
+   * に次の行を打つと `isRunning()` が false のままラインエディタへ素通りし、
+   * NEW の消去（`ProgramStore.clear()`）が効く前に別の行を書き込めてしまう
+   * （公開版を実機操作して発見。行の追加とNEWの消去の実行順序が競合し、
+   * 消去前の古い行が生き残る）。`executeDirect` を呼んだ時点で同期的に true、
+   * `onDirectEnd` で完了した時点で false にすることで、rAF の実際の発火有無に
+   * 関わらず「コマンドを確定した瞬間から完了まで実行中」を保証する。
+   */
+  private busy = false;
+
   /** 確定（Enter）前の、現在入力中の1行分のテキスト。 */
   private lineBuffer = '';
 
@@ -62,7 +79,7 @@ export class DirectMode {
 
   /** 実行中かどうか（キー入力の行き先分離・カーソル表示の可否に使う）。 */
   isRunning(): boolean {
-    return this.interpreter.running;
+    return this.busy;
   }
 
   /** BREAK ボタン相当。実行中ならダイレクトモード側の実行へ BREAK を要求する。 */
@@ -219,6 +236,11 @@ export class DirectMode {
     }
     if (statements.length === 0) return;
 
+    // `Runtime.startDirect` は rAF 駆動のため、ここではまだ何も実行されていない
+    // （最初のフレームが回るまで `Interpreter.running` は true にならない）。
+    // それでも「コマンドを確定した瞬間から実行中」として打鍵をブロックできるよう、
+    // ここで同期的に true にする（`busy` フィールドのコメント参照）。
+    this.busy = true;
     this.runtime = new Runtime(
       this.interpreter,
       this.machine.keyboard,
@@ -248,6 +270,7 @@ export class DirectMode {
     }
     this.machine.screen.writeText('OK\n');
     this.callbacks.render();
+    this.busy = false;
   }
 
   private reportError(e: unknown, lineNumber: number | null): void {

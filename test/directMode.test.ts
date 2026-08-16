@@ -240,6 +240,35 @@ describe('DirectMode: ダイレクト実行', () => {
     expectScreenText(machine, '10 PRINT "X"\nNEW\nOK\nRUN\nOK\n');
   });
 
+  it('NEW の実行完了前（スケジューラが1フレームも進んでいない間）は「実行中」として打鍵を無視する', () => {
+    // NEW は `Runtime`（rAF駆動）経由で実行されるため、Enter を押した直後の
+    // 時点ではまだ1フレームも進んでおらず、プログラム本体の消去（onDirectEnd）は
+    // 完了していない。この間に次の行を打ってしまうと、消去前の ProgramStore へ
+    // 書き込まれてしまい、「NEW のはずが古い行が生き残る」実行順序の競合が起きる
+    // （公開版で実機操作により発見。scheduler.tick() 前でも isRunning() は
+    // true を返し、打鍵をラインエディタへ入れない設計にすることで塞ぐ）。
+    const { dm, machine, scheduler } = buildDirectMode();
+    type(dm, '10 PRINT "X"');
+    enter(dm);
+    type(dm, '20 PRINT "Y"');
+    enter(dm);
+    type(dm, 'NEW');
+    enter(dm);
+
+    // まだ scheduler.tick() していない＝NEW はまだ実行完了していないはずだが、
+    // ここで「実行中」として扱われている必要がある。
+    expect(dm.isRunning()).toBe(true);
+    type(dm, '10 PRINT "Z"'); // 実行中なので無視されるはず
+    enter(dm);
+
+    scheduler.tickAll();
+    type(dm, 'LIST');
+    enter(dm);
+    scheduler.tickAll();
+
+    expectScreenText(machine, '10 PRINT "X"\n20 PRINT "Y"\nNEW\nOK\nLIST\nOK\n');
+  });
+
   it('実行中は打鍵がラインエディタに入らない', () => {
     const { dm, machine, scheduler } = buildDirectMode();
     type(dm, '10 FOR I=1 TO 100000');
