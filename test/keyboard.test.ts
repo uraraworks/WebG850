@@ -5,7 +5,7 @@
 // （`Keyboard` 側は DOM に直接依存しない設計なので、これで実装コードは変更不要）。
 
 import { describe, expect, it } from 'vitest';
-import { BREAK_KEY, Keyboard } from '../src/machine/keyboard.ts';
+import { applyCapsLock, BREAK_KEY, DEFAULT_CAPS_LOCK, Keyboard } from '../src/machine/keyboard.ts';
 
 /** `code` を明示的に空文字列にした擬似 KeyboardEvent を作る（自動テスト用ブラウザの実挙動を模す）。 */
 function keyEventNoCode(key: string): KeyboardEvent {
@@ -87,6 +87,48 @@ describe('Keyboard: BREAK キー', () => {
     const kb = new Keyboard();
     kb.handleKeyDown(keyEvent(BREAK_KEY, BREAK_KEY));
     expect(kb.inkey()).toBe('');
+  });
+});
+
+describe('Keyboard: CAPS ロック（既定で大文字入力）', () => {
+  it('既定値は大文字（DEFAULT_CAPS_LOCK）', () => {
+    expect(DEFAULT_CAPS_LOCK).toBe(true);
+  });
+
+  it('applyCapsLock: オンなら大文字化、オフならそのまま', () => {
+    expect(applyCapsLock('a', true)).toBe('A');
+    expect(applyCapsLock('a', false)).toBe('a');
+    expect(applyCapsLock('A', true)).toBe('A');
+    expect(applyCapsLock('1', true)).toBe('1'); // 英字以外はそのまま
+  });
+
+  it('小文字キーを打っても INKEY$/INPUT へは既定で大文字が積まれる', () => {
+    const kb = new Keyboard();
+    kb.handleKeyDown(keyEvent('a', 'KeyA'));
+    expect(kb.inkey()).toBe('A');
+  });
+
+  it('INPUT の行入力も既定で大文字になる', () => {
+    const kb = new Keyboard();
+    kb.handleKeyDown(keyEvent('a', 'KeyA'));
+    kb.handleKeyDown(keyEvent('b', 'KeyB'));
+    kb.handleKeyDown(keyEvent('Enter', 'Enter'));
+    expect(kb.takeLine()).toBe('AB');
+  });
+
+  it('setCapsLock(false) にすると小文字のまま積まれる', () => {
+    const kb = new Keyboard();
+    kb.setCapsLock(false);
+    expect(kb.isCapsLockOn()).toBe(false);
+    kb.handleKeyDown(keyEvent('a', 'KeyA'));
+    expect(kb.inkey()).toBe('a');
+  });
+
+  it('reset() では CAPS ロック状態は変わらない（物理モードのため CLEAR と独立）', () => {
+    const kb = new Keyboard();
+    kb.setCapsLock(false);
+    kb.reset();
+    expect(kb.isCapsLockOn()).toBe(false);
   });
 });
 

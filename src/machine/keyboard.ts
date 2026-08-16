@@ -54,9 +54,35 @@ function inkeyCharFromEvent(e: KeyboardEvent): string | null {
   return null;
 }
 
+/**
+ * CAPS ロックの既定値。
+ *
+ * 実機 PC-G850 は電源投入時から英字が既定で大文字入力になる
+ * （小文字は `CAPS` キーの上に印字された「小文字」ラベルへ切り替えて出す）。
+ * 仮想キーボードに `CAPS` キーを載せる予定があるため、この既定値と
+ * `Keyboard.capsLock` フィールド1つを切り替えるだけで挙動が変わる形にしてある
+ * （`setCapsLock`/`isCapsLockOn` 経由で配線する）。
+ */
+export const DEFAULT_CAPS_LOCK = true;
+
+/**
+ * 英字1文字に CAPS ロック状態を適用する。
+ * CAPS オンなら大文字化、オフならそのまま返す（英字以外はそのまま）。
+ */
+export function applyCapsLock(ch: string, capsLock: boolean): string {
+  return capsLock ? ch.toUpperCase() : ch;
+}
+
 export class Keyboard {
   /** 現在押下中のキー識別子（`eventKeyId` の値）の集合。 */
   private readonly pressed = new Set<string>();
+
+  /**
+   * CAPS ロック状態。既定は大文字（`DEFAULT_CAPS_LOCK`）。
+   * `INKEY$`／`INPUT` と LCD 直接打鍵（`ui/directMode.ts`）の両方が
+   * ここを参照するため、CAPS キー実装時はここを1箇所切り替えれば両方に効く。
+   */
+  private capsLock = DEFAULT_CAPS_LOCK;
 
   /** `INKEY$` 用のキーバッファ（1文字ずつ FIFO）。 */
   private readonly inkeyBuffer: string[] = [];
@@ -83,18 +109,22 @@ export class Keyboard {
       return;
     }
 
-    const ch = inkeyCharFromEvent(e);
-    if (ch === null) return;
+    const rawCh = inkeyCharFromEvent(e);
+    if (rawCh === null) return;
 
-    if (ch === '\r') {
+    if (rawCh === '\r') {
       this.lineReady = true;
       return;
     }
-    if (ch === '\b') {
+    if (rawCh === '\b') {
       this.lineBuffer = this.lineBuffer.slice(0, -1);
       return;
     }
 
+    // `INPUT`/`INKEY$` の大文字化: 仕様書に記載が無いため、LCD 直接打鍵
+    // （`ui/directMode.ts`）と揃えて大文字にする（判断: 実行中の入力だけ
+    // 小文字のままだと直接打鍵との非対称が利用者から見えて不自然なため）。
+    const ch = applyCapsLock(rawCh, this.capsLock);
     this.inkeyBuffer.push(ch);
     this.lineBuffer += ch;
   }
@@ -107,6 +137,16 @@ export class Keyboard {
   /** 指定した物理キーが現在押下中かどうか。 */
   isPressed(keyId: string): boolean {
     return this.pressed.has(keyId);
+  }
+
+  /** CAPS ロック状態を切り替える（将来の仮想キーボード `CAPS` キーから呼ぶ想定）。 */
+  setCapsLock(on: boolean): void {
+    this.capsLock = on;
+  }
+
+  /** 現在の CAPS ロック状態。 */
+  isCapsLockOn(): boolean {
+    return this.capsLock;
   }
 
   /** `INKEY$` 相当。バッファ先頭の1文字を取り出す。無ければ空文字列。 */
@@ -135,7 +175,11 @@ export class Keyboard {
     return true;
   }
 
-  /** テスト・CLEAR 相当で全状態をリセットする。 */
+  /**
+   * テスト・CLEAR 相当で全状態をリセットする。
+   * `capsLock` はキートップの物理モードであり `CLEAR`（変数のリセット）とは
+   * 独立した状態のため、意図的にここではリセットしない。
+   */
   reset(): void {
     this.pressed.clear();
     this.inkeyBuffer.length = 0;

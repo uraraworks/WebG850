@@ -25,6 +25,7 @@ import { Interpreter } from '../basic/interpreter.ts';
 import { parseProgram } from '../basic/parser.ts';
 import { ProgramStore } from '../basic/programStore.ts';
 import type { Machine } from '../machine/machine.ts';
+import { applyCapsLock } from '../machine/keyboard.ts';
 import { TEXT_COLS } from '../machine/screen.ts';
 import type { CursorOverlayState } from '../machine/cursorOverlay.ts';
 import { browserScheduler, Runtime, type Scheduler } from './runtime.ts';
@@ -117,9 +118,18 @@ export class DirectMode {
     }
   }
 
+  /**
+   * LCD への直接打鍵1文字を反映する。
+   *
+   * 実機は既定で大文字入力（`machine/keyboard.ts` の `DEFAULT_CAPS_LOCK` 参照）
+   * のため、ここで CAPS ロック状態に従って大文字化する。**非対称の注意**：
+   * テキスト入力欄パネル（`loadProgram`）はプログラムファイル相当として
+   * 書かれた文字をそのまま扱い、ここを通らないので変換されない。
+   */
   private insertChar(ch: string): void {
-    this.lineBuffer += ch;
-    this.machine.screen.writeText(ch);
+    const displayCh = applyCapsLock(ch, this.machine.keyboard.isCapsLockOn());
+    this.lineBuffer += displayCh;
+    this.machine.screen.writeText(displayCh);
     this.callbacks.render();
   }
 

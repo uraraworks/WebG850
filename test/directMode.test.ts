@@ -119,6 +119,33 @@ describe('DirectMode: 文字入力とカーソル', () => {
   });
 });
 
+describe('DirectMode: 直接打鍵の大文字化（実機は既定で大文字入力）', () => {
+  it('小文字キーで打っても画面には大文字で出る', () => {
+    const { dm, machine } = buildDirectMode();
+    type(dm, 'ab');
+    expectScreenText(machine, 'AB');
+  });
+
+  it('machine.keyboard.setCapsLock(false) にすると小文字のまま出る', () => {
+    const { dm, machine } = buildDirectMode();
+    machine.keyboard.setCapsLock(false);
+    type(dm, 'ab');
+    expectScreenText(machine, 'ab');
+  });
+
+  it('loadProgram（テキスト入力欄パネル相当）は大文字化しない：文字列リテラルの小文字がそのまま RUN の出力に出る', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    // BASIC キーワード（PRINT）は大文字が必須のためそのまま書く。
+    // 判定したいのは文字列リテラル中の小文字が変換されずに残るかどうか。
+    dm.loadProgram('10 PRINT "hello"');
+    dm.runCommand('RUN');
+    scheduler.tickAll();
+
+    // 直接打鍵（type）経由なら "HELLO" になるところ、loadProgram はそのまま無変換で通す。
+    expectScreenText(machine, 'RUN\nhello\nOK\n');
+  });
+});
+
 describe('DirectMode: プログラムの格納・置換・削除', () => {
   it('行番号付きの行を Enter で確定するとプログラムへ格納され、RUN で実行できる', () => {
     const { dm, machine, scheduler } = buildDirectMode();
