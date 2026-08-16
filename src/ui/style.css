@@ -61,12 +61,25 @@ body {
 /* LCD 表示エリア */
 
 .screen-area {
+  /*
+   * 【判断した点・理由】 flex: 1 0 auto は残す（`canvas.ts` の resize() は
+   * この要素の clientHeight を「利用可能な高さ」として拡大倍率を計算するため、
+   * ここを内容サイズに縮めると高さが小さいまま固定され、常に低倍率になってしまう
+   * ——循環参照に近い依存関係）。
+   *
+   * 問題だったのは align-items: center による上下中央寄せの方。
+   * スマートフォン縦持ちでは screen-area が「ビューポート高さ − ヘッダー −
+   * フッター」いっぱいに伸びる一方、LCD 自体は狭い横幅に制約されて低倍率
+   * （小さい実寸）にしかならないため、中央寄せすると見出しと LCD の間に
+   * 大きな空白ができていた。上寄せ（flex-start）に変え、代わりに上側に
+   * ある程度の余白（padding-top）を残すことで、狭い画面でも適度な余白に収める。
+   */
   flex: 1 0 auto;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
-  padding: 1.5rem 1rem;
+  padding: 2rem 1rem;
 }
 
 #screen {
@@ -100,12 +113,24 @@ body {
   background: #ecebe4;
   font-size: 0.8rem;
   color: #55544a;
+  /* 列（ブロック）自体は中央寄せ、本文の文字揃えは段落ごとに指定する。 */
   text-align: center;
 }
 
 .site-footer p {
-  max-width: 640px;
+  /*
+   * 長い日本語の段落は中央揃えだと行頭が揃わず読みにくいため左揃えにし、
+   * 読みやすい行長（目安 40〜45 文字）で折り返すよう ch 単位で max-width を
+   * 設ける。見出し的な短い行（英語1行・リンク行）は下で個別に中央揃えへ戻す。
+   */
+  max-width: 42ch;
   margin: 0.5rem auto;
+  text-align: left;
+}
+
+.site-footer__rom-en,
+.site-footer__links {
+  text-align: center;
 }
 
 .site-footer__rom {

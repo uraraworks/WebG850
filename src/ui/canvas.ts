@@ -19,6 +19,16 @@ import { SCREEN_HEIGHT, SCREEN_WIDTH } from '../machine/screen.ts';
 /** 既定の拡大倍率（144×48 → 576×192）。ウィンドウが十分広いときはこれを使う。 */
 export const DEFAULT_SCALE = 4;
 
+/**
+ * 拡大倍率の上限。
+ *
+ * デスクトップの広い画面では、利用可能な幅・高さいっぱいまで拡大すると
+ * 144×48 の LCD が 8 倍（約 1180px 幅）を超え、看板のように大写しになって
+ * 「携帯機の液晶」に見えなくなる。5 倍（720×240px）を上限とし、
+ * 「机の上のポケコンの液晶」程度の見た目に収める。
+ */
+export const MAX_SCALE = 5;
+
 /** LCD の点灯ドット色（濃色）。 */
 export const DOT_ON_COLOR = '#1a1a1a';
 /** LCD の消灯ドット色（薄いがページ背景とは区別できる色）。 */
@@ -43,13 +53,14 @@ const DOT_OFF_RGB = hexToRgb(DOT_OFF_COLOR);
 /**
  * 利用可能な幅・高さから、144×48 を整数倍で収められる最大の倍率を返す。
  * 収まらない場合でも最低 1 倍は保証する（等倍未満に縮小しない）。
+ * 上限は `MAX_SCALE`（広い画面で看板のように大写しになるのを防ぐ）。
  */
 export function computeScale(availableWidth: number, availableHeight: number): number {
   const maxByWidth = Math.floor(availableWidth / SCREEN_WIDTH);
   const maxByHeight = Math.floor(availableHeight / SCREEN_HEIGHT);
   const scale = Math.min(maxByWidth, maxByHeight);
   if (!Number.isFinite(scale) || scale < 1) return 1;
-  return scale;
+  return Math.min(scale, MAX_SCALE);
 }
 
 export interface CanvasBinding {
