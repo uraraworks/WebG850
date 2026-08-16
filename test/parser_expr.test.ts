@@ -137,3 +137,71 @@ describe('parseExpression: 一次式', () => {
     expect(expr.reason).toBe('phase3');
   });
 });
+
+describe('parseExpression: 括弧なし関数呼び出し（不確定仕様 UNPARENTHESIZED_CALL_BINDING）', () => {
+  it('CHR$ 135 は括弧なしで FunctionCall になる', () => {
+    const expr = parse('CHR$ 135') as any;
+    expect(expr.kind).toBe('FunctionCall');
+    expect(expr.name).toBe('CHR$');
+    expect(expr.args).toHaveLength(1);
+    expect(expr.args[0].kind).toBe('NumberLiteral');
+    expect(expr.args[0].value).toBe(135);
+  });
+
+  it('RND 6 は括弧なしで FunctionCall になる', () => {
+    const expr = parse('RND 6') as any;
+    expect(expr.kind).toBe('FunctionCall');
+    expect(expr.name).toBe('RND');
+    expect(expr.args[0].value).toBe(6);
+  });
+
+  it('VAL A$ / LEN A$ は括弧なしで変数を引数に取れる', () => {
+    const val = parse('VAL A$') as any;
+    expect(val.kind).toBe('FunctionCall');
+    expect(val.args[0].kind).toBe('VariableRef');
+    expect(val.args[0].name).toBe('A$');
+
+    const len = parse('LEN A$') as any;
+    expect(len.kind).toBe('FunctionCall');
+    expect(len.args[0].name).toBe('A$');
+  });
+
+  it('CHR$ (140-B) は従来どおり括弧付きの複合式を引数に取れる（非退行）', () => {
+    const expr = parse('CHR$ (140-B)') as any;
+    expect(expr.kind).toBe('FunctionCall');
+    expect(expr.args).toHaveLength(1);
+    const arg = expr.args[0] as BinaryOp;
+    expect(arg.kind).toBe('BinaryOp');
+    expect(arg.op).toBe('-');
+    expect((arg.left as any).value).toBe(140);
+    expect((arg.right as any).name).toBe('B');
+  });
+
+  it('CHR$ 140-B は束縛が最も強く、CHR$(140)-B と解釈される', () => {
+    const expr = parse('CHR$ 140-B') as BinaryOp;
+    expect(expr.kind).toBe('BinaryOp');
+    expect(expr.op).toBe('-');
+    const left = expr.left as any;
+    expect(left.kind).toBe('FunctionCall');
+    expect(left.name).toBe('CHR$');
+    expect(left.args).toHaveLength(1);
+    expect(left.args[0].value).toBe(140);
+    expect((expr.right as any).name).toBe('B');
+  });
+
+  it('括弧付き呼び出しは従来どおり動く（非退行）', () => {
+    const expr = parse('CHR$(135)') as any;
+    expect(expr.kind).toBe('FunctionCall');
+    expect(expr.args[0].value).toBe(135);
+  });
+
+  it('引数2個以上の関数（MID$）は括弧なしでは構文エラーになる', () => {
+    expect(() => parse('MID$ A$,1,2')).toThrow();
+  });
+
+  it('引数2個以上の関数は従来どおり括弧付きで動く（非退行）', () => {
+    const expr = parse('MID$(A$,1,2)') as any;
+    expect(expr.kind).toBe('FunctionCall');
+    expect(expr.args).toHaveLength(3);
+  });
+});

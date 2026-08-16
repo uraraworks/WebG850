@@ -95,6 +95,7 @@ import {
   GENERATED_FUNCTIONS,
   GENERATED_STATEMENT_PHASES,
 } from './generated/command_table.js';
+import { markUncertainUsed } from './uncertain.js';
 
 // ─────────────────────────────────────────────────────────────
 // カーソル（次の担当が文パーサでもそのまま使う共通構造）
@@ -207,12 +208,14 @@ interface FunctionInfo {
   readonly phase: FunctionPhase;
   /** true なら括弧・引数を取らない（PI, FRE, MDF, INKEY$, PIOGET）。 */
   readonly noParen: boolean;
+  /** format の丸括弧内引数の個数（noParen なら 0）。括弧なし呼び出しを許すかの判定に使う。 */
+  readonly argCount: number;
 }
 
 const FUNCTION_INFO: ReadonlyMap<string, FunctionInfo> = new Map<string, FunctionInfo>(
   GENERATED_FUNCTIONS.map((f): [string, FunctionInfo] => [
     f.name,
-    { phase: f.phase, noParen: f.noParen },
+    { phase: f.phase, noParen: f.noParen, argCount: f.argCount },
   ])
 );
 
@@ -431,13 +434,23 @@ function parseFunctionOrUnsupported(cursor: Cursor, tok: Token): Expr {
   cursor.next(); // 関数名キーワードを消費
 
   const hasParen = cursor.checkType('lparen');
-  const args = info.noParen
-    ? // 引数なし関数。括弧が来ても付けない書き方が正式のはずだが、万一 "()" と
-      // 書かれても壊れないよう空引数の括弧だけは許容しておく。
-      hasParen
-      ? parseArgumentList(cursor)
-      : []
-    : parseArgumentList(cursor);
+  let args: Expr[];
+  if (info.noParen) {
+    // 引数なし関数。括弧が来ても付けない書き方が正式のはずだが、万一 "()" と
+    // 書かれても壊れないよう空引数の括弧だけは許容しておく。
+    args = hasParen ? parseArgumentList(cursor) : [];
+  } else if (!hasParen && info.argCount === 1) {
+    // 【不確定仕様】 括弧なしの単項呼び出し（`CHR$ 135` 等）。
+    // 実在作品31本の計測で常用が確認できたため受理するが、束縛の強さ
+    // （どこまでを引数として食うか）はマニュアルに記載が無く推測。
+    // `uncertain.ts` の `UNPARENTHESIZED_CALL_BINDING` に根拠を集約している。
+    markUncertainUsed('UNPARENTHESIZED_CALL_BINDING');
+    args = [parseUnarySign(cursor)];
+  } else {
+    // 括弧あり、または引数2個以上の関数（MID$ 等）。括弧なしなら
+    // parseArgumentList が構文エラーとして落とす。
+    args = parseArgumentList(cursor);
+  }
 
   if (info.phase !== 1) {
     const node: UnsupportedExpr = {
@@ -673,24 +686,37 @@ function parseIfClause(cursor: Cursor): IfClause {
 }
 
 /**
- * `IF <条件> THEN …`。THEN 直後にトークンがあれば1行形式、無ければ
- * ブロック形式のヘッダとして扱う（判定基準は docs/design/phase1_grammar.md
- * 「IF は2形態ある」節）。
+ * `IF <条件> [THEN] …`。
+ *
+ * THEN が有れば、その直後にトークンがあれば1行形式、無ければブロック形式の
+ * ヘッダとして扱う（判定基準は docs/design/phase1_grammar.md「IF は2形態ある」節）。
+ *
+ * 【不確定仕様】 THEN の省略を許すかどうか。実在作品31本の計測で IF の出現
+ * 1063箇所のうち THEN 付きはわずか33箇所（97%が省略）だったため、
+ * `IF <条件> <節>` も1行形式として受理する（`IMPLICIT_THEN` として
+ * `uncertain.ts` に集約）。THEN 無しで条件の直後に何も続かない
+ * （行末または `:`）場合は、節を持たないブロック形式として解釈する根拠が
+ * 無いため構文エラーのままとする。
  */
 function parseIfStmt(cursor: Cursor): IfLineStmt | IfStmt {
   const startTok = cursor.next(); // IF
   const condition = parseExpression(cursor);
-  if (!cursor.checkKeyword('THEN')) {
-    const t = cursor.peek();
-    throw new BasicError(
-      ErrorCode.SYNTAX,
-      `IF: "THEN" を期待しましたが ${t ? `"${t.text}"` : '行末'} でした`,
-    );
-  }
-  cursor.next(); // THEN
-  const afterThen = cursor.peek();
-  if (afterThen === undefined) {
-    return { kind: 'IfStmt', condition, pos: startTok.pos };
+  if (cursor.checkKeyword('THEN')) {
+    cursor.next(); // THEN
+    const afterThen = cursor.peek();
+    if (afterThen === undefined) {
+      return { kind: 'IfStmt', condition, pos: startTok.pos };
+    }
+  } else {
+    markUncertainUsed('IMPLICIT_THEN');
+    const afterCond = cursor.peek();
+    if (afterCond === undefined || afterCond.type === 'colon') {
+      const t = cursor.peek();
+      throw new BasicError(
+        ErrorCode.SYNTAX,
+        `IF: "THEN" または節を期待しましたが ${t ? `"${t.text}"` : '行末'} でした`,
+      );
+    }
   }
   const thenClause = parseIfClause(cursor);
   let elseClause: IfClause | null = null;

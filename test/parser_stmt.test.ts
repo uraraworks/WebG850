@@ -92,6 +92,64 @@ describe('IF の2形態', () => {
   });
 });
 
+describe('IF: THEN 省略（不確定仕様 IMPLICIT_THEN）', () => {
+  it('THEN を省略して行番号を続けると IfLineStmt になる', () => {
+    const [stmt] = parseLine('IF A=1 100') as [IfLineStmt];
+    expect(stmt.kind).toBe('IfLineStmt');
+    expect(stmt.thenClause).toMatchObject({ kind: 'LineNumberTarget', value: 100 });
+    expect(stmt.elseClause).toBeNull();
+  });
+
+  // 【既知の制約】 THEN を省略した場合、条件式の直後に続く `*ラベル` は
+  // 受理できない。`*` は乗算演算子と同じトークンなので、条件式パーサが
+  // `A=1 *LOOP` を「A=1*LOOP という乗算を含む条件式」として食べてしまい、
+  // 曖昧性を切り分けられない（THEN 付きなら THEN が明確な区切りになるため
+  // 問題にならない）。実在作品の計測でも THEN 省略と *ラベルの組み合わせは
+  // 確認されていないため、この組み合わせは対応対象外とする
+  // （*ラベルへ飛びたい場合は THEN を書けば従来どおり動く）。
+
+  it('THEN を省略して文を続けられる（ELSE も取れる）', () => {
+    const [stmt] = parseLine('IF A=1 PRINT A ELSE PRINT B') as [IfLineStmt];
+    expect(stmt.kind).toBe('IfLineStmt');
+    expect((stmt.thenClause as PrintStmt).kind).toBe('PrintStmt');
+    expect((stmt.elseClause as PrintStmt).kind).toBe('PrintStmt');
+  });
+
+  it('THEN 付きの従来構文は非退行で動く', () => {
+    const [stmt] = parseLine('IF A=1 THEN 100') as [IfLineStmt];
+    expect(stmt.kind).toBe('IfLineStmt');
+    expect(stmt.thenClause).toMatchObject({ kind: 'LineNumberTarget', value: 100 });
+  });
+
+  it('IF が連鎖する（実在作品で常用される書き方）', () => {
+    const [stmt] = parseLine('IF U=0 IF X>5 GOSUB 210') as [IfLineStmt];
+    expect(stmt.kind).toBe('IfLineStmt');
+    const inner = stmt.thenClause as IfLineStmt;
+    expect(inner.kind).toBe('IfLineStmt');
+    expect((inner.thenClause as any).kind).toBe('GosubStmt');
+  });
+
+  it('IF が3連鎖してさらに複文が続く', () => {
+    const [stmt] = parseLine('IF U=0 IF INKEY$="4" IF X>5 GOSUB 210:X=X-1') as [IfLineStmt];
+    expect(stmt.kind).toBe('IfLineStmt');
+    const inner1 = stmt.thenClause as IfLineStmt;
+    const inner2 = inner1.thenClause as IfLineStmt;
+    expect(inner2.kind).toBe('IfLineStmt');
+    expect((inner2.thenClause as any).kind).toBe('GosubStmt');
+  });
+
+  it('THEN も節も無い IF 単独は構文エラー', () => {
+    expect(() => parseLine('IF A=1')).toThrow();
+  });
+
+  it('THEN 無しでブロック形式（IfStmt ヘッダのみ）にはならない', () => {
+    // ブロック形式は「THEN の後が行末」で判定するため、THEN を省略した場合に
+    // 節を全く読まない IfStmt を許す根拠が無い（上のテストで構文エラーになる）。
+    const [stmt] = parseLine('IF A=1 THEN') as [IfStmt];
+    expect(stmt.kind).toBe('IfStmt');
+  });
+});
+
 describe('PRINT', () => {
   it('カンマ区切り（ゾーン送り）', () => {
     const [stmt] = parseLine('PRINT A,B') as [PrintStmt];

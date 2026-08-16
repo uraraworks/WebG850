@@ -32,7 +32,9 @@ export type UncertainId =
   | 'CURSOR_VISIBLE_WHEN_IDLE_ONLY'
   | 'DIRECT_MODE_PROMPT'
   | 'ERROR_PREFIX_QUESTION_MARK'
-  | 'INITIAL_BASIC_MODE';
+  | 'INITIAL_BASIC_MODE'
+  | 'IMPLICIT_THEN'
+  | 'UNPARENTHESIZED_CALL_BINDING';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -579,3 +581,65 @@ export function initialBasicMode(): 'PRO' | 'RUN' {
   markUncertainUsed('INITIAL_BASIC_MODE');
   return INITIAL_BASIC_MODE;
 }
+
+// ─────────────────────────────────────────────────────────────
+// IF の THEN 省略
+// ─────────────────────────────────────────────────────────────
+//
+// 実装は src/basic/parser.ts の parseIfStmt。ここには判断の根拠だけを記す
+// （フラグではなく分岐そのものが実装なので、切り替え用の定数は無い。
+// `markUncertainUsed('IMPLICIT_THEN')` を踏んだ箇所を見れば実装位置は分かる）。
+
+/**
+ * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` の IF は
+ * `format: "IF <条件> THEN <行番号>|*ラベル|<文> [ELSE …]"` と THEN 必須の
+ * 書式のみを記載しており、THEN 省略はマニュアルに記載が無い。
+ *
+ * 一方、実在作品31本を機械解析した結果、IF の出現1063箇所のうち THEN 付きは
+ * わずか33箇所（97%が省略）だった。28作品が省略形を使っており、
+ * マニュアルの書式より実際の使用実態の方が圧倒的に優勢という逆転した状況。
+ * この規律プロジェクトの成功指標は「実在の作品が動くか」（親 CLAUDE.md）なので、
+ * マニュアルの記載より実測された使用実態を優先し、THEN 省略を受理する。
+ *
+ * 【既知の制約】 THEN 省略時、条件式の直後に `*ラベル` を続けることはできない。
+ * `*` は乗算演算子と同じトークンのため、条件式パーサが `IF A=1 *LOOP` を
+ * 「`A=1*LOOP` という乗算を含む条件式」として食べてしまい曖昧性を切り分けられない
+ * （THEN 付きなら THEN が明確な区切りになるため問題にならない）。実在作品の計測でも
+ * THEN 省略と `*ラベル` の組み合わせは確認されていないため対応対象外とした。
+ * `*ラベル` へ飛びたい場合は THEN を書けば従来どおり動く。
+ *
+ * 参照: docs/design/phase1_grammar.md「IF は2形態ある」節
+ */
+export const IMPLICIT_THEN_NOTE = 'THEN省略は実在作品31本の計測(IF 1063箇所中THEN付き33箇所)を根拠に受理する';
+
+// ─────────────────────────────────────────────────────────────
+// 括弧なし関数呼び出しの束縛の強さ
+// ─────────────────────────────────────────────────────────────
+//
+// 実装は src/basic/parser.ts の parseFunctionOrUnsupported。
+
+/**
+ * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` の各関数 format は
+ * すべて `NAME(<引数>)` の括弧付き書式のみを記載しており、括弧を省略した
+ * 呼び出し（`CHR$ 135` 等）はマニュアルに記載が無い。
+ *
+ * 実在作品31本の計測では、引数1個の関数について括弧なし呼び出しが29作品で
+ * 常用されていた（例: `CHR$ 135` `RND 6` `VAL A$` `LEN A$`）。ただし
+ * **引数が複合式のときは作者が例外なく括弧を付けている**（`CHR$ (140-B)`、
+ * `INT ( RND (0` 等）。この観測から「括弧なし形式は単純な一次式にしか
+ * 使われていない」と読み取り、括弧なし引数は**式全体ではなく単項/一次式
+ * レベル（優先順位表 #1〜#3、`parseUnarySign` が読む範囲）までしか読まない**
+ * と決めた。つまり `CHR$ 140-B` は `CHR$(140-B)` ではなく `CHR$(140)-B`
+ * （140 だけを引数に取り、その後 B を引き算する）と解釈する。
+ *
+ * 引数2個以上の関数（`MID$` 等）は元々括弧必須の書式しか観測されておらず、
+ * このプロジェクトでも括弧必須のまま変更していない。
+ *
+ * 差し替える場合: `parser.ts` の `parseFunctionOrUnsupported` 内、
+ * `args = [parseUnarySign(cursor)]` の行を別の優先順位のパーサ関数
+ * （例えば `parseMultiplicative` 等）に差し替えれば束縛の強さが変わる。
+ *
+ * 参照: docs/design/phase1_grammar.md「一次式」節
+ */
+export const UNPARENTHESIZED_CALL_BINDING_NOTE =
+  '括弧なし引数は単項/一次式レベル(#1-3)までしか読まない。根拠は実在作品31本の計測(複合式には括弧を付ける慣行)';

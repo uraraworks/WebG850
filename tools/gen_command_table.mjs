@@ -36,6 +36,29 @@ function jsonLiteral(value) {
 }
 
 /**
+ * format の最初の丸括弧グループ（例: "MID$(<文字列>,<位置>,<文字数>)" の
+ * "<文字列>,<位置>,<文字数>" 部分）をトップレベルのカンマで数え、引数の個数を返す。
+ * ネストした括弧（無いはずだが念のため）はカンマとして数えない。
+ * 括弧が無い/空なら 0。
+ */
+function countTopLevelArgs(firstLine) {
+  const open = firstLine.indexOf('(');
+  if (open === -1) return 0;
+  const close = firstLine.lastIndexOf(')');
+  if (close === -1 || close <= open) return 0;
+  const inner = firstLine.slice(open + 1, close).trim();
+  if (inner === '') return 0;
+  let depth = 0;
+  let count = 1;
+  for (const ch of inner) {
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth--;
+    else if (ch === ',' && depth === 0) count++;
+  }
+  return count;
+}
+
+/**
  * commandsYamlText / tokensYamlText（yaml の生テキスト）から
  * command_table.ts のソースコード文字列を生成して返す。ファイルには書かない。
  */
@@ -48,12 +71,17 @@ export function generateCommandTableSource(commandsYamlText, tokensYamlText) {
 
   // --- FUNCTIONS: kind === 'function' の全命令。noParen は format の1行目に
   //     '(' が無いかどうかから機械的に導出する（PI/FRE/MDF/INKEY$/PIOGET）。
+  //     argCount は format の最初の丸括弧内をトップレベルのカンマで数えた個数
+  //     （括弧なし呼び出し `FN <引数>` を受理してよいかどうかの判定に使う。
+  //     parser.ts の【判断】コメント・uncertain.ts の SINGLE_ARG_NO_PAREN_CALL 参照）。
+  //     noParen な関数（引数を取らない）は 0 とする。
   const functionCommands = commandsDoc.commands
     .filter((c) => c.kind === 'function')
     .map((c) => {
       const firstLine = String(c.format ?? '').split('\n')[0];
       const noParen = !firstLine.includes('(');
-      return { name: c.name, phase: c.phase, noParen };
+      const argCount = noParen ? 0 : countTopLevelArgs(firstLine);
+      return { name: c.name, phase: c.phase, noParen, argCount };
     })
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
@@ -97,14 +125,20 @@ export function generateCommandTableSource(commandsYamlText, tokensYamlText) {
   lines.push('  readonly phase: CommandPhase;');
   lines.push('  /** true なら括弧・引数を取らない（PI, FRE, MDF, INKEY$, PIOGET）。 */');
   lines.push('  readonly noParen: boolean;');
+  lines.push(
+    '  /** format の丸括弧内をトップレベルのカンマで数えた引数の個数（noParen なら 0）。 */'
+  );
+  lines.push('  readonly argCount: number;');
   lines.push('}');
   lines.push('');
   lines.push(
-    '/** basic_commands.yaml の kind: function 全命令（54件）。phase・noParen も yaml から機械導出。 */'
+    '/** basic_commands.yaml の kind: function 全命令（54件）。phase・noParen・argCount も yaml から機械導出。 */'
   );
   lines.push('export const GENERATED_FUNCTIONS: readonly GeneratedFunctionSpec[] = [');
   for (const f of functionCommands) {
-    lines.push(`  { name: ${jsonLiteral(f.name)}, phase: ${f.phase}, noParen: ${f.noParen} },`);
+    lines.push(
+      `  { name: ${jsonLiteral(f.name)}, phase: ${f.phase}, noParen: ${f.noParen}, argCount: ${f.argCount} },`
+    );
   }
   lines.push('];');
   lines.push('');
