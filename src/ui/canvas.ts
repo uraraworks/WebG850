@@ -5,12 +5,20 @@
  * backing store とし、`image-rendering: pixelated` で単純拡大していた（「緑地に
  * 真っ黒な四角」）。今回、実機 SHARP PC-G850S の STN 液晶に近づけるため、
  * backing store を `SUBPIXEL_SCALE` 倍に高解像度化し、その中で
- * 「反射板」「ドット同士の格子」「にじみ（影）」「残像」「列方向の濃淡
+ * 「反射板」「ドット同士の格子」「にじみ（影）」「列方向の濃淡
  * （クロストーク）」を層として合成する（ゲームボーイ実機液晶を再現した
  * 先行事例の考え方を踏襲：ぼかしフィルタ一発ではなく液晶の構造を模す）。
  * 最終的な CSS 拡大は `pixelated` をやめ、ブラウザの通常の補間に任せる
  * （にじみを生かすため。1ドット線が消えないことは目視で確認済み——
  * 詳細は各定数のコメントとセッション記録を参照）。
+ *
+ * 【残像層は実装後に撤去した】 一時期「前フレームを薄く残す」残像層があったが、
+ * `LIST` 表示後に `RUN` すると前画面が薄く残って実行結果に重なり読みにくく、
+ * かつ減衰を `render()` の呼び出し回数に紐づけていたため画面が静止すると
+ * 減衰自体が起きず焼き付いたまま残る不具合があった。実機は時間経過で消えるので
+ * 挙動としても誤りだった。道具として使いにくく実機との一致度も怪しい機能を
+ * 残す理由がないため、レイヤーごと削除した（強さを0にするのではなく処理を外した）。
+ * 同じ実装が親切心で再度足されないよう、このコメントを残す。
  *
  * `POINT` の結果に影響する `Screen`（`machine/screen.ts`）とカーソル重畳
  * （`machine/cursorOverlay.ts`）は一切変更していない。ここで行っているのは
@@ -110,22 +118,6 @@ const BLEED_BLUR_PX = 1.4;
 /** にじみ層を重ねる際の不透明度。強くしすぎると文字が滲んで潰れるため控えめ。 */
 const BLEED_ALPHA = 0.5;
 
-/**
- * 残像（前フレームを薄く混ぜる）の減衰率。
- *
- * `render()` が呼ばれるたびに「1フレーム経過」とみなし、消灯した直後の
- * ドットの残り輝度に毎回この係数を掛けて弱める（正確な壁時計基準ではない。
- * `render()` は `ui/runtime.ts` の rAF ループから毎フレーム呼ばれる設計
- * （`STEPS_PER_FRAME` 参照）なので、実用上は概ね1画面更新＝1減衰に対応する）。
- * **現在点灯中のドットは常に不透明度1で描画**し、残像の対象は
- * 「直前まで点灯していて今は消えたドット」だけに限定している
- * （今まさに表示されている1ドット線がぼやける事故を避けるため）。
- */
-const PERSISTENCE_DECAY = 0.35;
-
-/** これを下回ったら残像を描画自体しない（無限に薄い尾を引かせない打ち切り）。 */
-const PERSISTENCE_MIN_ALPHA = 0.03;
-
 // ─── 列方向の濃淡（クロストーク） ──────────────────────────
 //
 // 「同じ列に濃い点が並ぶと、その列全体がわずかに濃くなる」という駆動特性。
@@ -192,18 +184,6 @@ function buildColumnVariance(): Float32Array {
 }
 
 const COLUMN_VARIANCE = buildColumnVariance();
-
-/** ドット強度(0〜1)を量子化してキャッシュした `rgba()` 文字列（毎フレームの文字列生成を避ける）。 */
-const INTENSITY_LEVELS = 32;
-function buildIntensityPalette(): string[] {
-  const out: string[] = [];
-  for (let lvl = 0; lvl <= INTENSITY_LEVELS; lvl++) {
-    const alpha = lvl / INTENSITY_LEVELS;
-    out.push(`rgba(${DOT_ON_RGB[0]},${DOT_ON_RGB[1]},${DOT_ON_RGB[2]},${alpha.toFixed(3)})`);
-  }
-  return out;
-}
-const DOT_FILL_PALETTE = buildIntensityPalette();
 
 /**
  * 高さによる縮小を検討する閾値（ビューポート高さ）。
@@ -308,9 +288,6 @@ export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen, options:
   // ctx と同じ理由（ネストした関数の中まで null 除外の絞り込みが伝播しないため）で束ね直す。
   const dctx: CanvasRenderingContext2D = dctx2d;
 
-  /** 残像用の状態（消灯直後のドットの残り輝度、0〜1）。ドット単位で `render()` を跨いで保持する。 */
-  const persistence = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT);
-
   // クロストークの行方向漸化式で使い回すスクラッチ配列（毎フレーム確保しない）。
   const upEnergy = new Float32Array(SCREEN_HEIGHT);
   const downEnergy = new Float32Array(SCREEN_HEIGHT);
@@ -394,24 +371,18 @@ export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen, options:
       }
     }
 
-    // 3. ドット層（残像込み）を専用キャンバスへ描く。
+    // 3. ドット層を専用キャンバスへ描く。前フレームを混ぜる残像処理は行わない
+    //    （撤去理由はファイル冒頭のコメント参照）。点灯中のドットだけを
+    //    そのまま不透明に描く。
     dctx.clearRect(0, 0, backingWidth, backingHeight);
+    dctx.fillStyle = DOT_ON_COLOR;
     for (let y = 0; y < SCREEN_HEIGHT; y++) {
       for (let x = 0; x < SCREEN_WIDTH; x++) {
         const idx = y * SCREEN_WIDTH + x;
-        const rawOn = rawDots[idx] !== 0;
-        const decayed = persistence[idx] * PERSISTENCE_DECAY;
-        const baseIntensity = rawOn ? 1 : decayed;
-        persistence[idx] = baseIntensity;
+        // カーソルの重畳（点滅）はここで反映する。`overlaid` は Screen 本体を
+        // 汚さない一時的な重畳結果（`machine/cursorOverlay.ts` 参照）。
+        if (overlaid[idx] === 0) continue;
 
-        // カーソルの重畳（点滅）は液晶の残像対象にしない。UI要素の瞬時な
-        // 反転として扱い、直前の状態に関わらずそのフェーズの値を即座に出す。
-        const overlaidOn = overlaid[idx] !== 0;
-        const intensity = overlaidOn !== rawOn ? (overlaidOn ? 1 : 0) : baseIntensity;
-        if (intensity < PERSISTENCE_MIN_ALPHA) continue;
-
-        const level = Math.round(intensity * INTENSITY_LEVELS);
-        dctx.fillStyle = DOT_FILL_PALETTE[level];
         dctx.fillRect(
           x * SUBPIXEL_SCALE + DOT_GAP_PX / 2,
           y * SUBPIXEL_SCALE + DOT_GAP_PX / 2,
