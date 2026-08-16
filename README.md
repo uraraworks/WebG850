@@ -4,7 +4,7 @@
 >
 > This is a clean-room implementation: it does not include, distribute, or reference any ROM image. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 >
-> Currently under development — the specification has been drafted, but implementation has not yet started.
+> Phase 1 (a compatible BASIC interpreter) is up and running in the browser: it can tokenize, parse, and execute BASIC programs, drawing text and graphics on a 144×48 screen with keyboard input and BEEP support. Editor commands (`AUTO` / `DELETE` / `RENUM` / `PASS`), `LCOPY` (printer output), and `PRINT USING` formatting are not implemented yet, and Phase 2 (Z80 / machine code) and Phase 3 haven't started. Unsupported statements fail loudly with an `?UNSUPPORTED` message instead of being silently ignored.
 >
 > Documentation is in Japanese.
 
@@ -25,7 +25,19 @@ ROM の中身（逆アセンブルリストや内部処理そのもの）は一�
 
 ## 現在の状態
 
-**Phase 1（互換 BASIC インタプリタ）の仕様策定が完了した段階です。実装はこれからです。**
+**Phase 1（互換 BASIC インタプリタ）が動いています。** ブラウザ上で BASIC プログラムを
+字句解析・構文解析・評価し、144×48 ドットの画面に文字とグラフィックを描画できます。
+キーボード入力と BEEP（WebAudio）も動作します。組込み関数は 49 個実装済みです。
+
+**未実装**（現時点では動きません）:
+
+- エディタ系コマンド: `AUTO` / `DELETE` / `RENUM` / `PASS`
+- `LCOPY`（プリンタ出力）
+- `PRINT USING` の書式指定
+- Phase 2（Z80 コア／機械語）・Phase 3（エディタ・URL共有・C/CASL）は未着手
+
+未対応の命令に実行が到達すると、黙って無視せず画面に `?UNSUPPORTED <命令名> IN <行番号>`
+と表示して停止します（このプロジェクトの方針：不明な挙動を無言にしない）。
 
 仕様は `docs/spec/*.yaml` に機械可読な形で置いています。
 
@@ -37,6 +49,17 @@ ROM の中身（逆アセンブルリストや内部処理そのもの）は一�
 
 読み方や信用してよい範囲の説明は [`docs/仕様_BASIC命令セット.md`](docs/仕様_BASIC命令セット.md) に、
 YAML の書式定義は [`docs/spec/SCHEMA.md`](docs/spec/SCHEMA.md) にあります。
+
+## 開発・ビルド
+
+```sh
+npm install       # 依存関係のインストール
+npm run dev       # 開発サーバ（Vite）
+npm run build     # dist/ に静的ファイルを生成（GitHub Pages にそのまま置ける）
+npm test          # vitest によるテスト実行（現在 17 ファイル・312 件、全て pass）
+```
+
+ランタイム依存パッケージはゼロです（Vite + TypeScript + Vitest のみ）。
 
 ## 精度の方針：完全再現は目指さない
 
