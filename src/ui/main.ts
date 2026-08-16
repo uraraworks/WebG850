@@ -205,6 +205,16 @@ function main(): void {
   directMode = new DirectMode(machine, { render: renderAll, notifyUnsupported: showUnsupportedNotice });
   updateModeIndicator(); // 初期状態（既定 PRO）を反映する。
 
+  // タブが非表示の間はカーソル点滅の再描画を止める（`DirectMode.pauseCursorBlink` 参照。
+  // `DirectMode` 自身は `document` を持たない設計のため、購読はここで行う）。
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      directMode!.pauseCursorBlink();
+    } else {
+      directMode!.resumeCursorBlink();
+    }
+  });
+
   attachVirtualKeyboard(virtualKeyboardPanel, {
     machine,
     directMode,

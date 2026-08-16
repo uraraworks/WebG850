@@ -29,6 +29,7 @@ import type { Machine } from '../machine/machine.ts';
 import { applyCapsLock } from '../machine/keyboard.ts';
 import { TEXT_COLS } from '../machine/screen.ts';
 import type { CursorOverlayState } from '../machine/cursorOverlay.ts';
+import { browserBlinkScheduler, CursorBlinkLoop, type BlinkScheduler } from './cursorBlinkLoop.ts';
 import { browserScheduler, Runtime, type Scheduler } from './runtime.ts';
 
 /** 行番号で始まる行を判定する正規表現。先頭の空白を許し、行番号と本文の間の空白は任意。 */
@@ -86,6 +87,21 @@ export class DirectMode {
    */
   private busy = false;
 
+  /**
+   * カーソル点滅専用の再描画ループ（`cursorBlinkLoop.ts`）。「入力待ちの間だけ」動かす
+   * （`busy` の遷移＝`executeDirect`/`onDirectEnd` に合わせて `stop`/`start` する。
+   * `handleKeyDown`/`insertChar` 等の打鍵直後は `busy` が変わらないため触らなくてよい）。
+   *
+   * 【時間で変化するものは時間で描き直す】 点滅の位相計算（`isCursorBlinkOn`）自体は
+   * 時刻ベースで正しいが、`Runtime`（rAF ループ）は実行中だけ回るため、入力待ちで
+   * 画面が静止していると位相が進んでも誰も再描画しなかった不具合の対策
+   * （旧不具合＝LCD残像の減衰を「描画回数」に紐づけて静止画面で焼き付いた話の逆）。
+   */
+  private readonly blinkLoop: CursorBlinkLoop;
+
+  /** タブが非表示中かどうか（`pauseCursorBlink`/`resumeCursorBlink` 参照）。 */
+  private tabHidden = false;
+
   /** 確定（Enter）前の、現在入力中の1行分のテキスト。 */
   private lineBuffer = '';
 
@@ -100,8 +116,12 @@ export class DirectMode {
     private readonly machine: Machine,
     private readonly callbacks: DirectModeCallbacks,
     private readonly scheduler: Scheduler = browserScheduler(),
+    blinkScheduler: BlinkScheduler = browserBlinkScheduler(),
   ) {
     this.interpreter = this.buildInterpreter();
+    this.blinkLoop = new CursorBlinkLoop(() => this.callbacks.render(), blinkScheduler);
+    // 起動直後は入力待ち（busy=false）から始まるため、点滅ループも最初から動かす。
+    this.blinkLoop.start();
   }
 
   private buildInterpreter(): Interpreter {
@@ -371,6 +391,9 @@ export class DirectMode {
     // それでも「コマンドを確定した瞬間から実行中」として打鍵をブロックできるよう、
     // ここで同期的に true にする（`busy` フィールドのコメント参照）。
     this.busy = true;
+    // プログラム実行中はカーソルを表示しない（`getCursorOverlay` 参照）ので、
+    // 点滅用の再描画も止める（無駄な描画・スマートフォンの電池消費を避ける）。
+    this.blinkLoop.stop();
     this.runtime = new Runtime(
       this.interpreter,
       this.machine.keyboard,
@@ -405,6 +428,33 @@ export class DirectMode {
     this.machine.screen.writeText(directModePrompt());
     this.callbacks.render();
     this.busy = false;
+    // 入力待ちに戻ったので点滅を再開する（タブが非表示中なら `pauseCursorBlink` 側の
+    // 状態で既に止まっている想定だが、念のため `resumeCursorBlink` と同じ判定を通す）。
+    if (!this.tabHidden) this.blinkLoop.start();
+  }
+
+  /**
+   * タブが非表示（`document.visibilitychange` の `hidden`）になったときに呼ぶ。
+   * `ui/main.ts` から配線する（`DirectMode` 自身は DOM の `document` を持たない設計を
+   * 保つため、イベント購読は呼び出し側の責務とする）。
+   *
+   * 【判断した点・理由】 バックグラウンドタブでの点滅継続は画面に見えない再描画を
+   * 積み重ねるだけで、スマートフォンの電池消費に直接効く。`busy`（プログラム実行中）
+   * と独立の理由で止めたいので、専用のフラグ（`tabHidden`）で管理する
+   * （`busy` を書き換えると「実行中」の意味が変わってしまうため避けた）。
+   */
+  pauseCursorBlink(): void {
+    this.tabHidden = true;
+    this.blinkLoop.stop();
+  }
+
+  /**
+   * タブが再び表示されたときに呼ぶ。プログラム実行中（`busy`）でなければ点滅を再開する
+   * （実行中に再開すると `busy` 側の停止と競合するため、ここでも判定する）。
+   */
+  resumeCursorBlink(): void {
+    this.tabHidden = false;
+    if (!this.busy) this.blinkLoop.start();
   }
 
   /**
