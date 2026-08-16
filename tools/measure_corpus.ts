@@ -18,6 +18,7 @@
 // 既定の出力先はこのファイルと同じリポジトリ直下の `measure-output/`
 // （.gitignore 済み）。
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +38,8 @@ import { CELL_HEIGHT, CELL_WIDTH, TEXT_COLS, TEXT_ROWS } from '../src/machine/sc
 // ─────────────────────────────────────────────────────────────
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+/** このスクリプト自身のパス（子プロセスから`npx vite-node <SELF_PATH> --work-file=...`で再実行するため）。 */
+const SELF_PATH = fileURLToPath(import.meta.url);
 
 function requireCorpusDir(): string {
   const dir = process.env.G850_CORPUS;
@@ -394,6 +397,55 @@ function runProgram(source: string): RuntimeResult {
   return { status: 'RAN', detail: '', steps };
 }
 
+/**
+ * `runProgram` を子プロセスで実行し、親（このハーネス全体）を巻き込まずに
+ * ハングを検出・打ち切る。
+ *
+ * 【背景】 `runProgram` 内部の壁時計チェック（`WALL_CLOCK_BUDGET_MS`）は
+ * `gen.next()` が戻ってきた「後」にしか働かない。coreLoop 側に、行頭
+ * （`pc.stmtIndex===0`）へ一度も戻らないまま無限ループするパス（例:
+ * FOR/NEXT がループ変数を書き換え続けて終了条件に到達しない場合）が
+ * 万一残っていると、1回の `gen.next()` 自体が永久に返らず、親プロセスの
+ * `Date.now()` チェックにも実行が渡らない。ここでは各作品を
+ * `npx vite-node <SELF_PATH> --work-file=<path>` の子プロセスとして実行し、
+ * OS レベルのタイムアウト（`execFileSync` の `timeout`）で強制終了することで、
+ * 万一のハングが1作品の判定不能に留まり、コーパス全体の計測を道連れにしない
+ * ようにする。
+ */
+function runProgramIsolated(entry: CorpusEntry): RuntimeResult {
+  const CHILD_TIMEOUT_MS = WALL_CLOCK_BUDGET_MS + 10_000; // 内側の壁時計＋子プロセス起動オーバーヘッド分の余裕
+  try {
+    const stdout = execFileSync('npx', ['vite-node', SELF_PATH, `--work-file=${entry.filePath}`], {
+      timeout: CHILD_TIMEOUT_MS,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return JSON.parse(stdout) as RuntimeResult;
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException & { killed?: boolean; signal?: string | null; stdout?: string };
+    if (err.killed || err.signal) {
+      return {
+        status: 'TIMEOUT',
+        detail: `子プロセスがハング検出でタイムアウト強制終了(>${CHILD_TIMEOUT_MS}ms, signal=${err.signal ?? '?'})`,
+        steps: -1,
+      };
+    }
+    return { status: 'ERROR', detail: `HARNESS(child): ${err instanceof Error ? err.message : String(err)}`, steps: -1 };
+  }
+}
+
+/**
+ * `--work-file=<path>` 付きで起動されたときのワーカーモード。
+ * 指定された1作品のソースだけを実行し、結果をJSONとしてstdoutへ書いて終了する。
+ * 親プロセス（`runProgramIsolated`）から子プロセスとして呼ばれる想定。
+ */
+function runWorkerMode(filePath: string): void {
+  const source = readFileSync(filePath, 'utf8');
+  const result = runProgram(source);
+  process.stdout.write(JSON.stringify(result));
+  process.exit(0);
+}
+
 // ─────────────────────────────────────────────────────────────
 // 集計・出力
 // ─────────────────────────────────────────────────────────────
@@ -420,7 +472,7 @@ function main(): void {
     const staticResult = analyzeStatic(entry.source);
     let runtimeResult: RuntimeResult;
     try {
-      runtimeResult = runProgram(entry.source);
+      runtimeResult = runProgramIsolated(entry);
     } catch (e) {
       runtimeResult = { status: 'ERROR', detail: `HARNESS: ${e instanceof Error ? e.message : String(e)}`, steps: 0 };
     }
@@ -530,4 +582,9 @@ function main(): void {
   console.log(`[measure_corpus] TXT : ${txtPath}`);
 }
 
-main();
+const workFileArg = process.argv.slice(2).find((a) => a.startsWith('--work-file='));
+if (workFileArg) {
+  runWorkerMode(workFileArg.slice('--work-file='.length));
+} else {
+  main();
+}

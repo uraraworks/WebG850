@@ -134,6 +134,17 @@ export class Interpreter {
   /** INPUT/WAIT で同じ文へ再突入するときに行頭処理を1回だけスキップするためのフラグ。 */
   private suspendedAtSamePC = false;
   /**
+   * 行頭（`pc.stmtIndex === 0`）に一度も戻らないまま実行された文の数。
+   * FOR/NEXT やIF節の複文が同じ行の中だけでジャンプし続ける場合、
+   * 通常の行頭yieldに一度も到達しないまま無限ループしうる
+   * （`ui/runtime.ts`の「無限ループのプログラムでも毎フレーム描画・
+   * BREAK確認ができる」という設計保証が破れる）。この保証を満たすため、
+   * 行頭に依らず一定文数ごとに安全弁としてyieldする。
+   */
+  private statementsSinceLineStartYield = 0;
+  /** `statementsSinceLineStartYield` がこの値に達したら行頭でなくてもyieldする。 */
+  private static readonly MID_LINE_SAFETY_YIELD_INTERVAL = 200;
+  /**
    * IF の1行形式 THEN/ELSE 節（`:` 区切りの複文）を実行中の再開位置。
    * 節内で INPUT/WAIT が中断すると coreLoop は同じ IfLineStmt を pc 据え置きで
    * 呼び直す（`suspendedAtSamePC` 参照）ため、どの文まで実行済みかを
@@ -331,6 +342,27 @@ export class Interpreter {
           this.machine.screen.writeText(`[${line.lineNumber}]`);
         }
         yield { kind: 'yield' };
+        this.statementsSinceLineStartYield = 0;
+      } else {
+        // FOR/NEXT や IF の複文節が同じ行の中だけでジャンプし続けると、上の
+        // 行頭yieldに一度も到達しないまま実行され続けることがある
+        // （例: `FOR Q=0 TO 1:Q=-(INKEY$=" "):NEXT` のように、ループ内で
+        // ループ変数を書き換え続けて終了条件に到達しない場合）。
+        // `ui/runtime.ts`「無限ループのプログラムでも毎フレーム描画・BREAK確認が
+        // できる」という設計保証が破れ、ホスト側（ブラウザ/計測ハーネス）が
+        // 無応答になるため、行頭に依らず一定文数ごとに安全弁としてyieldする。
+        // BREAK確認は行うが、TRON表示は行頭以外では出さない
+        // （docs/design/phase1_runtime.md「TRON / TROFF」節の「行頭に1箇所だけ」を維持）。
+        this.statementsSinceLineStartYield++;
+        if (this.statementsSinceLineStartYield >= Interpreter.MID_LINE_SAFETY_YIELD_INTERVAL) {
+          this.statementsSinceLineStartYield = 0;
+          if (this.breakRequested) {
+            this.breakRequested = false;
+            this.haltWithMessage('BREAK', line.lineNumber, true, true);
+            continue;
+          }
+          yield { kind: 'yield' };
+        }
       }
       this.suspendedAtSamePC = false;
 

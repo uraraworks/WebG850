@@ -118,6 +118,34 @@ describe('FOR / NEXT', () => {
     const { interpreter } = run(src);
     expect(interpreter.variables.getScalar('C')).toEqual(numeric(4));
   });
+
+  it(
+    '同一行内で完結するFOR/NEXTがループ変数を書き換え続けて終了条件に到達しなくても、' +
+      'gen.next()呼び出し自体が無限にブロックしない（行頭に依らず一定文数ごとに安全弁yieldする）。' +
+      '実在作品runbridge.txtの`FOR Q=0 TO 1:Q=-(INKEY$=" "):NEXT`（スペースキー待ちの慣用句）が' +
+      '同じ行の中だけでジャンプし続け、行頭yieldに一度も到達せずコーパス計測プロセスごと固まった' +
+      '不具合の最小再現。修正前は最初にこの無限ループへ入った時点で1回の`gen.next()`が永久に' +
+      '返らずハングする（本テスト自体がタイムアウトしてハングを検出する）。',
+    () => {
+      const program = parseProgram('10 FOR I=0 TO 1:I=0:NEXT');
+      const machine = new Machine(1);
+      const interpreter = new Interpreter(program, machine, dummyBuiltins());
+      const gen = interpreter.run();
+      // 200000ステップ全消化（十数秒かかる）まで待たず、少数回の gen.next() の中で
+      // 複数回yieldが返ってくることだけを確認する。行頭に依らない安全弁が無ければ
+      // 最初のFOR本体突入後、この呼び出しの中のどこかで永久にブロックする。
+      let yieldCount = 0;
+      let res = gen.next();
+      for (let i = 0; i < 5000 && !res.done; i++) {
+        if (res.value.kind === 'yield') yieldCount++;
+        if (yieldCount >= 5) break;
+        res = gen.next();
+      }
+      expect(res.done).toBe(false); // 終了条件に到達しない無限ループのまま実行中
+      expect(yieldCount).toBeGreaterThanOrEqual(5); // 行頭に依らず安全弁yieldが繰り返し発生している
+    },
+    3000,
+  );
 });
 
 describe('GOSUB / RETURN', () => {
