@@ -257,6 +257,131 @@ describe('DirectMode: ダイレクト実行', () => {
   });
 });
 
+describe('DirectMode.runCommand: RUN/LIST ボタン相当が打鍵と同じ経路を通る', () => {
+  it('打鍵で RUN したときと画面が一致する', () => {
+    const typed = buildDirectMode();
+    type(typed.dm, '10 PRINT "OK"');
+    enter(typed.dm);
+    type(typed.dm, 'RUN');
+    enter(typed.dm);
+    typed.scheduler.tickAll();
+
+    const viaButton = buildDirectMode();
+    type(viaButton.dm, '10 PRINT "OK"');
+    enter(viaButton.dm);
+    viaButton.dm.runCommand('RUN');
+    viaButton.scheduler.tickAll();
+
+    expect(viaButton.machine.screen.dumpAscii(0, 0, 144, 48)).toBe(
+      typed.machine.screen.dumpAscii(0, 0, 144, 48),
+    );
+  });
+
+  it('画面を消さない（前の表示に続けて RUN の実行結果が表示される）', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    type(dm, '10 PRINT "OK"');
+    enter(dm);
+    dm.runCommand('RUN');
+    scheduler.tickAll();
+
+    expectScreenText(machine, '10 PRINT "OK"\nRUN\nOK\nOK\n');
+  });
+
+  it('LIST も打鍵と同じ経路で実行される', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    type(dm, '10 PRINT "X"');
+    enter(dm);
+    dm.runCommand('LIST');
+    scheduler.tickAll();
+
+    expectScreenText(machine, '10 PRINT "X"\nLIST\n10 PRINT "X"\nOK\n');
+  });
+
+  it('実行中は何もしない', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    type(dm, '10 FOR I=1 TO 100000');
+    enter(dm);
+    type(dm, '20 NEXT I');
+    enter(dm);
+    dm.runCommand('RUN');
+    scheduler.tick();
+    expect(dm.isRunning()).toBe(true);
+
+    const before = machine.screen.dumpAscii(0, 0, 144, 48);
+    dm.runCommand('LIST'); // 実行中なので無視されるはず
+    expect(machine.screen.dumpAscii(0, 0, 144, 48)).toBe(before);
+  });
+});
+
+describe('DirectMode.loadProgram: 入力欄パネルの取り込みボタン相当', () => {
+  it('複数行を取り込み、RUN で実行できる（画面へは逐次エコーしない）', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    dm.loadProgram('10 FOR I=1 TO 3\n20 PRINT I\n30 NEXT I');
+    dm.runCommand('RUN');
+    scheduler.tickAll();
+
+    const nums = [1, 2, 3].map((n) => `${formatNumber(n)}\n`).join('');
+    expectScreenText(machine, `RUN\n${nums}OK\n`);
+  });
+
+  it('取り込みは差分マージではなく置き換え（前回取り込んだ行は消える）', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    dm.loadProgram('10 PRINT "A"\n20 PRINT "B"');
+    dm.loadProgram('10 PRINT "ONLY"');
+    dm.runCommand('RUN');
+    scheduler.tickAll();
+
+    expectScreenText(machine, 'RUN\nONLY\nOK\n');
+  });
+
+  it('行番号の無い行・空行は無視される', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    dm.loadProgram('\n10 PRINT "A"\nREM コメント\n');
+    dm.runCommand('LIST');
+    scheduler.tickAll();
+
+    expectScreenText(machine, 'LIST\n10 PRINT "A"\nOK\n');
+  });
+
+  it('構文エラー行は既存のエラー表示を出し、取り込まれない', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    dm.loadProgram('10 @@@');
+
+    let errorLine = '';
+    try {
+      parseDirectStatements('@@@');
+      throw new Error('この BASIC ソースは構文エラーになる想定だったが、ならなかった');
+    } catch (e) {
+      if (e instanceof BasicError) {
+        errorLine = `?ERROR ${e.code} IN 10`;
+      } else if (e instanceof UnsupportedError) {
+        errorLine = `?UNSUPPORTED ${e.name_} IN 10`;
+      } else {
+        throw e;
+      }
+    }
+
+    dm.runCommand('LIST');
+    scheduler.tickAll();
+    expectScreenText(machine, `${errorLine}\nLIST\nOK\n`);
+  });
+
+  it('実行中は何もしない', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    type(dm, '10 FOR I=1 TO 100000');
+    enter(dm);
+    type(dm, '20 NEXT I');
+    enter(dm);
+    dm.runCommand('RUN');
+    scheduler.tick();
+    expect(dm.isRunning()).toBe(true);
+
+    const before = machine.screen.dumpAscii(0, 0, 144, 48);
+    dm.loadProgram('99 PRINT "X"'); // 実行中なので無視されるはず
+    expect(machine.screen.dumpAscii(0, 0, 144, 48)).toBe(before);
+  });
+});
+
 describe('DirectMode: カーソルは LCD のビットマップを汚さない', () => {
   it('getCursorOverlay() を呼んでも Screen.point() の結果は変化しない', () => {
     const { dm, machine } = buildDirectMode();

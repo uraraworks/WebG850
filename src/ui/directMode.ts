@@ -124,6 +124,53 @@ export class DirectMode {
     this.callbacks.render();
   }
 
+  /**
+   * RUN/LIST ボタン相当。指定したコマンド文字列を「LCD へキーボードで打ち込んで
+   * Enter を押した」のと完全に同じ経路（`commitLine`）で実行する。
+   *
+   * 【判断した点・理由】 以前は `ui/app.ts` の `App` が RUN 前に必ず `cls()` して
+   * いたが、実機の RUN は画面を消さない（消すのは CLS 文だけ）。ボタンを
+   * `commitLine` に合流させることで、直接入力と別実装を持たずに済み、
+   * 「ボタンだけ挙動が違う」余地が構造的に無くなる。
+   *
+   * 実行中は何もしない（`handleKeyDown` と同じ防御。BREAK ボタンで止めてから使う想定）。
+   */
+  runCommand(text: string): void {
+    if (this.isRunning()) return;
+    this.lineBuffer = text;
+    this.machine.screen.writeText(text);
+    this.callbacks.render();
+    this.commitLine();
+  }
+
+  /**
+   * テキスト入力欄パネルの「プログラムに取り込む」ボタン相当。
+   * 行番号付きの各行を `commitNumberedLine` へそのまま渡し、1行ずつ打って
+   * Enter したのと同じ検証・格納をする。行番号の無い行（空行含む）は無視する。
+   *
+   * 【判断した点・理由】 打鍵の逐次エコー（画面へ1文字ずつ表示）まではしない
+   * ＝実機の CLOAD（テープからの一括読み込み）に近い扱いとした。LCD の狭い
+   * 画面へ入力欄の内容をまるごとエコーすると、複数行のプログラムでは画面が
+   * 一括読み込みの結果より読みにくくなるため。構文エラー行は `commitNumberedLine`
+   * が既存の経路でエラー表示するので、ここでは黙って落とさない
+   * （依頼の「未実装・不正な入力を無言で無視しない」方針に合わせる）。
+   *
+   * 呼ぶたびに既存のプログラムをいったん消してから取り込む（CLOAD 相当＝
+   * 入力欄の内容で丸ごと置き換える）。差分マージにすると、入力欄から消した
+   * 行が LCD 側にだけ残り続け、「入力欄の内容を取り込んだはず」という見た目と
+   * 実際のプログラムが食い違う（実機に無い罠になるため避けた）。
+   */
+  loadProgram(source: string): void {
+    if (this.isRunning()) return;
+    this.programStore.clear();
+    for (const rawLine of source.split('\n')) {
+      const m = NUMBERED_LINE.exec(rawLine);
+      if (m === null) continue; // 行番号の無い行（空行含む）は無視する。
+      this.commitNumberedLine(Number(m[1]), m[2]);
+    }
+    this.callbacks.render();
+  }
+
   private commitLine(): void {
     const text = this.lineBuffer;
     this.lineBuffer = '';

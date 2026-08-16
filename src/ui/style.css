@@ -180,6 +180,42 @@ body {
   background: #8f3a3a;
 }
 
+/* パネル切り替えボタン（同一作者の WebX68k の #btn-panel-keyboard 相当の流儀に揃える：
+   aria-pressed で状態を持ち、押下中は色で見分けられるようにする）。 */
+.panel-switch-btn[aria-pressed='true'] {
+  background: var(--footer-btn-bg-hover);
+  border-color: #8a8a8a;
+}
+
+/* テキスト入力欄パネル。既定では `.hidden` で隠す（依頼「既定では隠す」）。
+   `display:none` にすると内部の textarea がフォーカスを失う（ブラウザの標準挙動）ため、
+   「パネルを閉じたらキー入力はエミュレータへ戻る」がここだけで自然に成立する。 */
+.editor-panel {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.editor-panel.hidden {
+  display: none;
+}
+
+.editor-panel__note {
+  margin: 0;
+  width: 100%;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #c7c6c0;
+}
+
+.control-bar__button--load {
+  background: var(--footer-btn-bg);
+  width: 100%;
+}
+
 .control-bar__editor {
   width: 100%;
   max-width: 480px;

@@ -1,13 +1,17 @@
 // ui/main.ts が組む「window keydown → isFormControlTarget で分岐 → machine.keyboard」
-// という配線そのものを、実際の App/Runtime/Interpreter を使って結合テストする。
+// という配線そのものを、実際の DirectMode/Runtime/Interpreter を使って結合テストする。
 //
 // 依頼「3. キー入力の行き先を分離する」の受け入れ条件（両方とも実測すること）：
-//   - 入力欄（textarea）にフォーカスがあるときに打った文字は、エミュレータの
-//     キーバッファへ漏れないこと
-//   - INPUT 待ちのときはキーがちゃんとエミュレータへ届くこと
+//   - 入力欄パネル（textarea 等のフォーム部品）にフォーカスがあるとき（＝パネルが
+//     開いているとき）に打った文字は、エミュレータのキーバッファへ漏れないこと
+//   - フォーム部品にフォーカスが無いとき（＝パネルが閉じている、または LCD 直接入力
+//     中）は、INPUT 待ちも含めキーがちゃんとエミュレータへ届くこと
+//
+// 【判断した点・理由】 RUN/LIST ボタンが `App` ではなく `DirectMode.runCommand` を
+// 経由するよう統合した（`ui/main.ts` 参照）のに合わせ、ここも `DirectMode` を使う。
 
 import { describe, expect, it } from 'vitest';
-import { App } from '../src/ui/app.ts';
+import { DirectMode } from '../src/ui/directMode.ts';
 import { isFormControlTarget } from '../src/ui/keyRouting.ts';
 import type { Scheduler } from '../src/ui/runtime.ts';
 import { Machine } from '../src/machine/machine.ts';
@@ -66,12 +70,14 @@ describe('キー入力の行き先分離（main.ts の配線を再現した結�
   it('フォーム部品にフォーカスが無いときの打鍵は machine.keyboard へ届く（INPUT 待ちの再開含む）', () => {
     const machine = new Machine(1);
     const scheduler = manualScheduler();
-    const app = new App(machine, { render: () => {} }, scheduler);
+    const dm = new DirectMode(machine, { render: () => {} }, scheduler);
     const onKeydown = makeKeydownHandler(machine);
-    // フォーム部品ではないターゲット（実運用では #screen canvas 相当）。
+    // フォーム部品ではないターゲット（実運用では #screen canvas 相当。
+    // パネルが閉じている、または LCD への直接入力中の状態を表す）。
     const canvas = fakeTarget('CANVAS');
 
-    app.run('10 INPUT A\n20 PRINT A+1');
+    dm.loadProgram('10 INPUT A\n20 PRINT A+1');
+    dm.runCommand('RUN');
     scheduler.tick(); // INPUT 待ちで 'input' Suspend まで進む
 
     for (const ch of '41') {
@@ -85,10 +91,17 @@ describe('キー入力の行き先分離（main.ts の配線を再現した結�
     // A+1 = 42 が画面に表示されていることを確認する（値そのものの検証）。
     // INPUT は既定で "?" プロンプトを出し、確定した行をそのままエコーする
     // （interpreter.ts executeInput）。数値 PRINT は符号位置ぶん先頭にスペースが付く
-    // （number.ts の書式化仕様）。
+    // （number.ts の書式化仕様）。先頭の "RUN\n" は `dm.runCommand('RUN')` が
+    // 「LCD へ RUN と打って Enter を押した」のと同じ経路を通るため画面に残る
+    // （`App.run` と違い画面を消さない。依頼「1.」）。
     const cmp = new Machine();
+    cmp.screen.writeText('RUN\n');
     cmp.screen.writeText('?41\n');
     cmp.screen.writeText(' 42\n');
+    // 末尾の "OK\n" は、これがダイレクト実行（`RUN` を打鍵した扱い）である以上
+    // `DirectMode.onDirectEnd` が実行終了時に必ず出す（旧 `App.run` は画面を
+    // クリアしていたためここが隠れて見えていなかっただけ）。
+    cmp.screen.writeText('OK\n');
     expect(machine.screen.dumpAscii(0, 0, 144, 48)).toBe(cmp.screen.dumpAscii(0, 0, 144, 48));
   });
 });

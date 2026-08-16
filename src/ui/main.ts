@@ -1,11 +1,18 @@
 // エントリポイント。
-// machine/screen・ui/canvas の結線に加え、プログラム入力欄と RUN/BREAK/LIST ボタンを
-// 結線する。パース〜実行〜エラー表示の実体は `ui/app.ts` の `App` に持たせてあり、
-// ここでは DOM 要素の取得とイベント配線だけを行う。
+// machine/screen・ui/canvas の結線に加え、プログラム入力欄パネルと RUN/BREAK/LIST
+// ボタンを結線する。
+//
+// 【判断した点・理由】 以前は「LCD 直接入力（`DirectMode`）」と「入力欄＋RUN/BREAK/LIST
+// ボタン（旧 `ui/app.ts` の `App`）」が別々の `Interpreter`/`Runtime` を持つ、
+// 完全に独立した2本の実行経路だった。今回、RUN/LIST ボタンを「LCD へそのコマンドを
+// キーボードで打って Enter を押したのと同じ経路」（`DirectMode.runCommand`）に
+// 統合したことで `App` は不要になったため削除した。実行経路は `DirectMode` の
+// 1本だけになる（依頼「別経路のまま両方を維持しないこと」）。
+// 入力欄は実行系を持たず、「プログラムに取り込む」ボタンで `DirectMode` の
+// `ProgramStore` へ書き込むだけの、コピペ用の補助パネルという位置づけにした。
 
 import { Machine } from '../machine/machine.ts';
 import type { Screen } from '../machine/screen.ts';
-import { App } from './app.ts';
 import { attachCanvas } from './canvas.ts';
 import { DirectMode } from './directMode.ts';
 import { isFormControlTarget } from './keyRouting.ts';
@@ -72,6 +79,12 @@ function main(): void {
   if (runButton === null || breakButton === null || listButton === null) {
     throw new Error('操作ボタン（RUN/BREAK/LIST）が見つかりません');
   }
+  const panelToggleButton = document.querySelector<HTMLButtonElement>('#btn-panel-editor');
+  const editorPanel = document.querySelector<HTMLDivElement>('#editor-panel');
+  const loadProgramButton = document.querySelector<HTMLButtonElement>('#btn-load-program');
+  if (panelToggleButton === null || editorPanel === null || loadProgramButton === null) {
+    throw new Error('入力欄パネル（編集ボタン／パネル本体／取り込みボタン）が見つかりません');
+  }
 
   const machine = new Machine();
   drawTestPattern(machine.screen);
@@ -100,22 +113,23 @@ function main(): void {
   window.addEventListener('keydown', attachAudioOnce, { once: true });
   window.addEventListener('click', attachAudioOnce, { once: true });
 
-  const app = new App(machine, { render });
   directMode = new DirectMode(machine, { render });
 
   // キー入力の行き先分離（依頼「3./4.」）：
-  // - プログラム入力欄や RUN/BREAK/LIST ボタンにフォーカスがあるあいだの打鍵は、
-  //   `isFormControlTarget` で弾いてエミュレータへ渡さない（従来どおり）。
+  // - プログラム入力欄パネル（`#program-input` や中のボタン）にフォーカスがあるあいだの
+  //   打鍵は、`isFormControlTarget` で弾いてエミュレータへ渡さない（従来どおり）。
+  //   パネルは既定で `hidden`（DOM から `display:none`）なので、閉じている間は
+  //   そもそも中の要素へフォーカスできず、この分岐は開いているときだけ効く。
   // - それ以外は `machine.keyboard` へ渡す（BREAK キー判定・INPUT/INKEY$ 用の
   //   バッファ蓄積は常時行う。実行中でなくても無害で、RUN のたびに reset される）。
-  // - 加えて、**何も実行中でないとき**（`App`／`DirectMode` のどちらも）だけ、
-  //   `DirectMode`（LCD 上のラインエディタ）へも渡す。これが既定の入力先になる
-  //   （依頼「4. 既定はエミュレータ」）。実行中は渡さない（依頼「実行中は
-  //   打鍵がラインエディタに入らないこと」）。
+  // - 加えて、**実行中でないとき**だけ `DirectMode`（LCD 上のラインエディタ）へも渡す
+  //   （依頼「4. 既定はエミュレータ」）。実行中は渡さない（依頼「実行中は打鍵が
+  //   ラインエディタに入らないこと」）。RUN/LIST ボタンも `DirectMode` を経由する
+  //   ようになったため、実行中かどうかの判定は `directMode.isRunning()` の1本で足りる。
   window.addEventListener('keydown', (e) => {
     if (isFormControlTarget(e.target)) return;
     machine.keyboard.handleKeyDown(e);
-    if (!app.isRunning() && !directMode!.isRunning()) {
+    if (!directMode!.isRunning()) {
       directMode!.handleKeyDown(e);
     }
   });
@@ -126,27 +140,46 @@ function main(): void {
 
   programInput.value = SAMPLE_PROGRAM;
 
+  // RUN/LIST ボタン：LCD へそのコマンドを打って Enter を押したのと同じ経路
+  // （`DirectMode.runCommand`）を通す。画面は消えず、コマンド自体も画面に表示される
+  // （依頼「1. RUN/LIST ボタンをそのコマンドを打ったのと同じ動作にする」）。
   runButton.addEventListener('click', () => {
-    app.run(programInput.value);
-  });
-  breakButton.addEventListener('click', () => {
-    // BREAK ボタンはどちらの実行系（テキスト入力欄からの RUN／LCD 直接入力からの
-    // RUN）が動いていても効くようにする。片方しか実行していない側の
-    // `requestBreak()` は「実行中でないのに呼ばれる」だけで無害（フラグを
-    // 立てるだけで、次に行頭へ来たときに消費される。実行していなければ
-    // 消費されるタイミング自体が来ない）。
-    app.break();
-    directMode!.requestBreak();
+    directMode!.runCommand('RUN');
   });
   listButton.addEventListener('click', () => {
-    app.list();
+    directMode!.runCommand('LIST');
+  });
+  // BREAK はコマンドではなくキー相当なので、従来どおり実行中断の直接要求にする。
+  breakButton.addEventListener('click', () => {
+    directMode!.requestBreak();
   });
 
-  // テストパターンは起動時のセルフチェック用に一瞬だけ表示する。BASIC の実行結果と
-  // 混ざって読めなくなるのを避けるため、プログラム実行前に画面を消す
-  // （依頼指示「プログラム実行前に画面を消すこと」）。App.run が内部で
-  // `machine.screen.cls()` を呼ぶため、ここでは明示的な cls() は不要。
-  app.run(SAMPLE_PROGRAM);
+  // 入力欄パネルの開閉（同一作者の WebX68k の #btn-panel-keyboard と同じ流儀：
+  // aria-pressed で状態を持ち、`hidden` クラスで表示を切り替える）。
+  let panelOpen = false;
+  const setPanelOpen = (open: boolean): void => {
+    panelOpen = open;
+    editorPanel.classList.toggle('hidden', !open);
+    panelToggleButton.setAttribute('aria-pressed', String(open));
+  };
+  setPanelOpen(panelOpen);
+  panelToggleButton.addEventListener('click', () => {
+    setPanelOpen(!panelOpen);
+  });
+
+  // 「プログラムに取り込む」ボタン：入力欄の内容を `DirectMode` の `ProgramStore` へ
+  // 反映するだけで、実行はしない（実行は操作バーの RUN ボタンに一本化する）。
+  loadProgramButton.addEventListener('click', () => {
+    directMode!.loadProgram(programInput.value);
+  });
+
+  // 起動時のセルフチェック用テストパターンを消してからサンプルプログラムを
+  // LCD 直接入力へ取り込み、RUN ボタンと同じ経路（打鍵を打って Enter）で実行する。
+  // ここで明示的に `cls()` するのは、あくまで「起動直後の初期化演出」としての
+  // 一度きりの処理であり、RUN ボタン自体（`DirectMode.runCommand`）は画面を消さない。
+  machine.screen.cls();
+  directMode.loadProgram(SAMPLE_PROGRAM);
+  directMode.runCommand('RUN');
 }
 
 main();

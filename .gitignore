@@ -4,6 +4,7 @@
 *.swo
 .vscode/
 .idea/
+.claude/
 
 # 依存関係・ビルド成果物
 node_modules/

@@ -25,16 +25,34 @@
           BREAK
         </button>
         <button type="button" id="btn-list" class="control-bar__button">LIST</button>
+        <button
+          type="button"
+          id="btn-panel-editor"
+          class="control-bar__button panel-switch-btn"
+          aria-pressed="false"
+          aria-label="プログラム入力欄を開閉"
+        >
+          編集
+        </button>
       </div>
-      <textarea
-        id="program-input"
-        class="control-bar__editor"
-        spellcheck="false"
-        autocapitalize="off"
-        autocomplete="off"
-        autocorrect="off"
-        rows="8"
-      ></textarea>
+      <div id="editor-panel" class="editor-panel hidden">
+        <p class="editor-panel__note">
+          ここは LCD への直接入力の補助（コピペ用）です。書いたら「取り込む」でプログラムへ反映し、
+          操作バーの RUN で実行してください。
+        </p>
+        <textarea
+          id="program-input"
+          class="control-bar__editor"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          autocorrect="off"
+          rows="8"
+        ></textarea>
+        <button type="button" id="btn-load-program" class="control-bar__button control-bar__button--load">
+          プログラムに取り込む
+        </button>
+      </div>
     </div>
 
     <footer class="site-footer">
