@@ -102,10 +102,16 @@ interface StaticResult {
  * interpreter.ts の executeStatement 側 switch に case が無く default 節へ
  * 落ちる）。実際に interpreter.ts の switch 節と ast.ts の Stmt 一覧を
  * 突き合わせて確認した差分をここに明示する（勘ではなくソース比較の結果）。
- * PrintUsing（PRINT USING の書式部分）と LcopyStmt（LCOPY）は例外を投げず
- * `machine.reportUnimplemented` だけを呼ぶ「部分未対応」だが、これも
- * 「実在作品がこの命令を使っているか」を知りたいという趣旨に合うため
- * 未実装カウントに含める。
+ * LcopyStmt（LCOPY）は例外を投げず `machine.reportUnimplemented` だけを
+ * 呼ぶ「部分未対応」だが、これも「実在作品がこの命令を使っているか」を
+ * 知りたいという趣旨に合うため未実装カウントに含める。
+ *
+ * 【変更履歴】 PrintUsing（PRINT USING の書式部分）は以前ここに含めていたが、
+ * USING/PRINT USING が実装された（interpreter.ts executePrint/executeStatement
+ * 'UsingStmt'）ため除外した。実装後もなお未対応なのは書式文字の一部
+ * （`#`/`.` 以外の `,`/`^`/`&`）だけで、これは静的（パース時点）には
+ * 判定できず実行時にしか分からない（`src/basic/using.ts` 参照）ため、
+ * ここでの静的カウントの対象からは外れる。
  */
 const RUNTIME_UNSUPPORTED_STMT_KINDS: ReadonlyMap<string, string> = new Map([
   ['AutoStmt', 'AUTO'],
@@ -139,8 +145,6 @@ function collectUnsupportedFromNode(
   const kind = obj.kind;
   if (kind === 'UnsupportedStmt' || kind === 'UnsupportedExpr') {
     out.push({ name: String(obj.name), line: lineNumber });
-  } else if (kind === 'PrintUsing') {
-    out.push({ name: 'PRINT USING', line: lineNumber });
   } else if (typeof kind === 'string' && RUNTIME_UNSUPPORTED_STMT_KINDS.has(kind)) {
     out.push({ name: RUNTIME_UNSUPPORTED_STMT_KINDS.get(kind)!, line: lineNumber });
   }
