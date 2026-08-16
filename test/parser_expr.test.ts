@@ -48,6 +48,36 @@ describe('parseExpression: 優先順位・結合', () => {
     expect((right.right as any).value).toBe(3);
   });
 
+  it('1+8\\3 は \\（整数除算）が + より先に結合する', () => {
+    const expr = parse('1+8\\3') as BinaryOp;
+    expect(expr.op).toBe('+');
+    expect((expr.left as any).value).toBe(1);
+    const right = expr.right as BinaryOp;
+    expect(right.op).toBe('\\');
+    expect((right.left as any).value).toBe(8);
+    expect((right.right as any).value).toBe(3);
+  });
+
+  it('8\\2*3 は \\ と * が同順位で左結合する（(8\\2)*3）', () => {
+    const expr = parse('8\\2*3') as BinaryOp;
+    expect(expr.op).toBe('*');
+    const left = expr.left as BinaryOp;
+    expect(left.op).toBe('\\');
+    expect((left.left as any).value).toBe(8);
+    expect((left.right as any).value).toBe(2);
+    expect((expr.right as any).value).toBe(3);
+  });
+
+  it('8\\2 MOD 3 は \\ と MOD が同順位で左結合する（(8\\2) MOD 3）', () => {
+    const expr = parse('8\\2 MOD 3') as BinaryOp;
+    expect(expr.op).toBe('MOD');
+    const left = expr.left as BinaryOp;
+    expect(left.op).toBe('\\');
+    expect((left.left as any).value).toBe(8);
+    expect((left.right as any).value).toBe(2);
+    expect((expr.right as any).value).toBe(3);
+  });
+
   it('NOT A AND B は (NOT A) AND B になる', () => {
     const expr = parse('NOT A AND B') as BinaryOp;
     expect(expr.kind).toBe('BinaryOp');

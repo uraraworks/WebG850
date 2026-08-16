@@ -89,6 +89,78 @@ describe('LET / PRINT', () => {
   });
 });
 
+describe('\\（整数除算演算子）', () => {
+  it('S=256\\3 は 85 になる（両オペランドとも整数なので丸めの影響なし）', () => {
+    const { interpreter } = run('10 S=256\\3');
+    expect(interpreter.variables.getScalar('S')).toEqual(numeric(85));
+  });
+
+  it('S=8\\-3 は 0 方向切り捨てで -2 になる（実機は8\\-3=-2、JSの%と違い切り捨て方向）', () => {
+    const { interpreter } = run('10 S=8\\-3');
+    expect(interpreter.variables.getScalar('S')).toEqual(numeric(-2));
+  });
+
+  it('S=51\\-5.7 は両オペランドを四捨五入してから整数除算する（51\\-6=-8、uncertain.ts INTEGER_DIVISION_ROUNDING 参照）', () => {
+    const { interpreter } = run('10 S=51\\-5.7');
+    expect(interpreter.variables.getScalar('S')).toEqual(numeric(-8));
+  });
+
+  it('S\\256 のようなハイスコアの上位バイト取り出しが動く', () => {
+    const { interpreter } = run('10 S=1234:H=S\\256:L=S MOD 256');
+    expect(interpreter.variables.getScalar('H')).toEqual(numeric(4));
+    expect(interpreter.variables.getScalar('L')).toEqual(numeric(1234 % 256));
+  });
+
+  it('1\\0 はゼロ除算エラー(ERROR)になる', () => {
+    const { machine, interpreter } = run('10 A=1\\0');
+    expect(interpreter.running).toBe(false);
+    const text = machine.screen.dumpAscii(0, 0, 144, 48);
+    const cmp = new Machine();
+    cmp.screen.writeText('\n?ERROR 21 IN 10\n');
+    expect(text).toBe(cmp.screen.dumpAscii(0, 0, 144, 48));
+  });
+
+  it('\\ は * / MOD と同順位で左結合する（8\\2*3=12）', () => {
+    const { interpreter } = run('10 S=8\\2*3');
+    expect(interpreter.variables.getScalar('S')).toEqual(numeric(12));
+  });
+});
+
+describe('空文（連続する `:` の読み飛ばし）', () => {
+  it('FOR I=0 TO 2::S=S+1:NEXT のような二重コロンが空文として読み飛ばされる', () => {
+    const { interpreter } = run('10 S=0\n20 FOR I=0 TO 2::S=S+1:NEXT');
+    expect(interpreter.variables.getScalar('S')).toEqual(numeric(3));
+  });
+
+  it('行頭の余分な `:` を許容する（:PRINT "A"）', () => {
+    const { machine } = run('10 :PRINT "A"');
+    const cmp = new Machine();
+    cmp.screen.writeText('A\n');
+    expect(machine.screen.dumpAscii(0, 0, 6, 16)).toBe(cmp.screen.dumpAscii(0, 0, 6, 16));
+  });
+
+  it('行末の余分な `:` を許容する（PRINT "A"::）', () => {
+    const { machine } = run('10 PRINT "A"::');
+    const cmp = new Machine();
+    cmp.screen.writeText('A\n');
+    expect(machine.screen.dumpAscii(0, 0, 6, 16)).toBe(cmp.screen.dumpAscii(0, 0, 6, 16));
+  });
+});
+
+describe('引数なし USING（既定書式の解除）', () => {
+  it('USING "##" で書式を設定した後、引数なし USING で解除され通常表示に戻る', () => {
+    const { machine } = run('10 USING "##"\n20 PRINT 3\n30 USING\n40 PRINT 3');
+    const cmp = new Machine();
+    cmp.screen.writeText(' 3\n 3\n');
+    expect(machine.screen.dumpAscii(0, 0, 12, 16)).toBe(cmp.screen.dumpAscii(0, 0, 12, 16));
+  });
+
+  it('USING :LOCATE ... のように直後に `:` が続く引数なし USING も解釈できる', () => {
+    const { interpreter } = run('10 USING "##"\n20 USING :A=3');
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(3));
+  });
+});
+
 describe('FOR / NEXT', () => {
   it('反復して合計を計算する', () => {
     const { interpreter } = run('10 S=0\n20 FOR I=1 TO 5\n30 S=S+I\n40 NEXT I\n50 END');

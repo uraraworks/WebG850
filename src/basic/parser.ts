@@ -301,7 +301,12 @@ function parseAdditive(cursor: Cursor): Expr {
 function parseMultiplicative(cursor: Cursor): Expr {
   let left = parseUnarySign(cursor);
   for (;;) {
-    const opText = cursor.matchOperator('*', '/') ?? cursor.matchKeyword('MOD');
+    // `\`（整数除算）は docs/spec/basic_commands.yaml MOD エントリの notes が
+    // 「整数除算(¥)とMODの対比計算例」として同じ節（3章 数学演算子の表）に
+    // 並記していると記す通り、MOD と同じ優先順位グループ（#4: * / MOD）に
+    // 属すると判断した。他の主要 BASIC 実装（GW-BASIC 等）でも `\` は
+    // `*` `/` `MOD` と同順位・左結合であり、この判断と整合する。
+    const opText = cursor.matchOperator('*', '/', '\\') ?? cursor.matchKeyword('MOD');
     if (opText === null) break;
     const opTok = cursor.next();
     const right = parseUnarySign(cursor);
@@ -686,6 +691,16 @@ function parseInputStmt(cursor: Cursor): InputStmt {
  * （parseIfStmt 参照）ため、1行に複数の ELSE が現れても「直近の
  * 未結合 IF に結合する」（dangling else の最近接規則）が自然に成立する。
  */
+/**
+ * 連続する `:`（複文区切り）を読み飛ばす。空文（`::`、行頭・行末の余分な `:`）を
+ * 許容するための共通ヘルパー。`parseStatementList` と `parseIfClause` で共用する。
+ */
+function skipColons(cursor: Cursor): void {
+  while (cursor.checkType('colon')) {
+    cursor.next();
+  }
+}
+
 function parseIfClause(cursor: Cursor): IfClause {
   const tok = cursor.peek();
   if (tok !== undefined && tok.type === 'number') {
@@ -696,15 +711,18 @@ function parseIfClause(cursor: Cursor): IfClause {
   }
   const statements: Stmt[] = [];
   for (;;) {
-    statements.push(parseStatement(cursor));
-    if (cursor.checkType('colon')) {
-      cursor.next();
-      if (cursor.atEnd() || cursor.checkKeyword('ELSE')) {
-        break;
-      }
-      continue;
+    // 連続する `:`（`::` 等）は空文として読み飛ばす（実在作品の実測。
+    // `FOR I=0 TO 8::READ N$(I):NEXT` のような書き方に対応。
+    // uncertain.ts には載せない: マニュアルの書式どおり「文の区切り」を
+    // 空の内容で許すだけの、不確定要素の無い素直な拡張のため）。
+    skipColons(cursor);
+    if (cursor.atEnd() || cursor.checkKeyword('ELSE')) {
+      break;
     }
-    break;
+    statements.push(parseStatement(cursor));
+    if (!cursor.checkType('colon')) {
+      break;
+    }
   }
   return statements;
 }
@@ -1624,19 +1642,16 @@ export function parseStatement(cursor: Cursor): Stmt {
  */
 export function parseStatementList(cursor: Cursor): Stmt[] {
   const statements: Stmt[] = [];
-  if (cursor.atEnd()) {
-    return statements;
-  }
   for (;;) {
-    statements.push(parseStatement(cursor));
-    if (cursor.checkType('colon')) {
-      cursor.next();
-      if (cursor.atEnd()) {
-        break;
-      }
-      continue;
+    // 行頭・連続・行末の `:` はすべて空文として読み飛ばす（parseIfClause と同じ扱い）。
+    skipColons(cursor);
+    if (cursor.atEnd()) {
+      break;
     }
-    break;
+    statements.push(parseStatement(cursor));
+    if (!cursor.checkType('colon')) {
+      break;
+    }
   }
   if (!cursor.atEnd()) {
     const t = cursor.peek();

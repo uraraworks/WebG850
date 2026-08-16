@@ -40,7 +40,8 @@ export type UncertainId =
   | 'USING_NEGATIVE_SIGN_PLACEMENT'
   | 'MEMORY_ADDRESS_WRAP'
   | 'MEMORY_BYTE_TRUNCATION'
-  | 'MEMORY_NOT_ROM_BACKED';
+  | 'MEMORY_NOT_ROM_BACKED'
+  | 'INTEGER_DIVISION_ROUNDING';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -769,4 +770,54 @@ export function truncateMemoryByte(value: number): number {
   // `&` は32bit二の補数表現で計算されるため、0xff との AND は
   // 符号に関係なく常に 0〜255 に収まる（-1 & 0xff === 255 等）。
   return Math.trunc(value) & 0xff;
+}
+
+// ─────────────────────────────────────────────────────────────
+// `\`（整数除算演算子）の丸め方向
+// ─────────────────────────────────────────────────────────────
+//
+// 実装は src/basic/evaluator.ts の evalBinary（case '\\'）。
+// 優先順位（`*` `/` `MOD` と同グループ・左結合）は parser.ts の
+// parseMultiplicative 側のコメントを参照（`docs/spec/basic_commands.yaml`
+// MOD エントリの notes が「整数除算(¥)とMODの対比計算例」を同じ節に
+// 並記していると記す通り、MOD と同順位と判断した。この判断自体は
+// 資料の並記に基づくため不確定仕様には含めていない）。
+
+/**
+ * 四捨五入（0.5 は絶対値が大きくなる方向、すなわち符号ごとに離れる方向へ丸める）。
+ * `docs/spec/basic_commands.yaml` MOD エントリの notes にある実行例
+ * `51 MOD -5.7=3(-5.7は-6に丸められ…)` がこの丸め方向（-5.7→-6、0から離れる側）
+ * を示しているため、`\` にも同じ規則を適用する。
+ */
+export function roundHalfAwayFromZero(x: number): number {
+  return x < 0 ? -Math.round(-x) : Math.round(x);
+}
+
+/**
+ * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` には `\` 単独の
+ * エントリが無く、MOD エントリの notes に「整数除算(¥)とMODの対比計算例」が
+ * 英語版マニュアル(3章 Manual Calculations の算術演算子表)に並記されていた、
+ * という記述があるのみ。この notes は「両オペランドを四捨五入で整数に丸めて
+ * から0方向切り捨ての整数除算・剰余を返す」という丸め規則を、MOD の実行例
+ * （`51 MOD -5.7=3` 等）から導いたものであり、`\` 自身の独立した実行例は
+ * まだ確認できていない。
+ *
+ * ここでは MOD と対比計算例として並記されていた資料の性質上、`\` にも
+ * 同じ丸め規則（両オペランドを四捨五入で整数化してから 0 方向切り捨ての
+ * 商を返す）を適用するのが最も根拠のある選択と判断し、暫定採用する。
+ *
+ * 【既知の割り切り】 現在の `evaluator.ts` の MOD 実装は JS の `%` を
+ * そのまま使っており、この丸め規則を適用していない（MOD 自体の丸め挙動は
+ * このタスクのスコープ外のため未修正のまま）。そのため `\` と MOD で
+ * 丸めの有無が食い違う状態が残る。丸め規則を実測できた場合、または
+ * MOD 側の丸め挙動を見直す場合は、この関数と `evaluator.ts` の両方を
+ * 合わせて差し替えること。
+ *
+ * 参照: docs/spec/basic_commands.yaml MOD エントリの notes
+ */
+export function integerDivide(dividend: number, divisor: number): number {
+  markUncertainUsed('INTEGER_DIVISION_ROUNDING');
+  const li = roundHalfAwayFromZero(dividend);
+  const ri = roundHalfAwayFromZero(divisor);
+  return Math.trunc(li / ri);
 }

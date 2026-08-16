@@ -1785,6 +1785,34 @@ commands:
     source: manual_de p.223 / manual_en p.215
     notes: '位置1-255・文字数0-255(小数切り捨て)・範囲外ERROR・文字列長超過時は空文字列、という記述は両版完全一致。ただしERRORコードの具体的な番号は両版とも記載が無く、英語版でも確定せず。関連:
       LEFT$, RIGHT$'
+  - name: "\\"
+    aliases: []
+    kind: operator
+    category: math
+    format: <数値式1>\<数値式2>
+    summary: 整数除算演算子。電卓モード(3.2節)の英語版マニュアルの数学演算一覧表にMODと並記される形で登場する（独語版の表には掲載が確認できていない）。
+    params:
+      - name: 数値式1
+        type: numeric
+        optional: false
+        range: null
+        notes: 小数・負数を与えた場合は四捨五入で最も近い整数に丸められてから除算が行われる(下記notes参照、不確定仕様)。
+      - name: 数値式2
+        type: numeric
+        optional: false
+        range: null
+        notes: 同上。0（丸め後）を指定するとERROR(ゼロ除算)。
+    returns: numeric
+    errors:
+      - 数値式2が0（丸め後）のときゼロ除算のERROR
+    phase: 1
+    status: partial
+    ocr_suspect: false
+    verified_by: manual_3rd_party
+    verifiable_by_measurement: true
+    source: manual_en p.15 (3章 Manual Calculations、電卓モードの算術演算子一覧、MODとの対比計算例として言及)
+    notes: 'この演算子自体の独立したエントリはマニュアルに無く、MODエントリのnotesに記載の「整数除算(¥)とMODの対比計算例」という言及からの間接的な確認にとどまる。演算子単独の実行例・優先順位の明記は無いため、丸め規則と優先順位はいずれも
+      src/basic/uncertain.ts（INTEGER_DIVISION_ROUNDING）およびsrc/basic/parser.ts（parseMultiplicativeのコメント）に判断根拠を集約した。関連: MOD'
   - name: MOD
     aliases: []
     kind: operator

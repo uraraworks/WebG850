@@ -9,7 +9,9 @@ import type { ArrayRef, BinaryOp, BinaryOperator, Expr, FunctionCall, UnaryOp } 
 import { BasicError, ErrorCode, UnsupportedError } from './errors.js';
 import {
   IMPLICIT_ARRAY_SIZE,
+  integerDivide,
   markUncertainUsed,
+  roundHalfAwayFromZero,
   type UncertainId,
 } from './uncertain.js';
 import {
@@ -326,6 +328,13 @@ export class Evaluator {
       case 'MOD':
         if (r === 0) throw new BasicError(ErrorCode.DIVISION_BY_ZERO, 'ゼロ除算です（MOD）');
         return numeric(l % r);
+      case '\\': {
+        // 整数除算演算子。丸め方向は不確定仕様（uncertain.ts の integerDivide 参照）。
+        if (roundHalfAwayFromZero(r) === 0) {
+          throw new BasicError(ErrorCode.DIVISION_BY_ZERO, 'ゼロ除算です（\\）');
+        }
+        return numeric(integerDivide(l, r));
+      }
       case '^': {
         const result = l ** r;
         if (Number.isNaN(result)) {
