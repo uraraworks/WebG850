@@ -8,10 +8,19 @@
  *
  * 【判断した点・理由】 スマートフォンでの横スクロール防止のため、`box-sizing: border-box`
  * を全要素に適用し、幅方向は `100%` と `padding` の組み合わせで完結させている
- * （固定 px 幅を極力使わない）。LCD の縁取り（筐体）は `box-shadow` で表現した。
+ * （固定 px 幅を極力使わない）。LCD は縁取りではなく `box-shadow` の落ち影で浮かせている。
  * `box-shadow` はレイアウトサイズに影響しない（描画のみ）ため、`canvas.ts` の
- * 「利用可能幅からスケールを計算する」ロジックを縁取りの太さ分だけ狂わせる心配がない。
+ * 「利用可能幅からスケールを計算する」ロジックに干渉しない。
+ *
+ * ヘッダー帯の配色は同一作者の WebNP2 / WebX68k と揃えている（CSS カスタムプロパティ）。
+ * ページ本体（背景）とフッターは白基調のまま変更しない。
  */
+
+:root {
+  --header-bg: #0c0c0c;
+  --header-text: #f2f2f2;
+  --header-tagline-text: #a8a8a8;
+}
 
 *,
 *::before,
@@ -41,21 +50,26 @@ body {
 /* ヘッダー */
 
 .site-header {
-  padding: 1.5rem 1rem 1rem;
+  width: 100%;
+  background: var(--header-bg);
+  padding: 10px 16px;
   text-align: center;
+  box-shadow:
+    inset 0 -1px #ffffff0f,
+    0 2px 6px #0006;
 }
 
 .site-header h1 {
   margin: 0 0 0.4rem;
   font-size: 1.8rem;
   letter-spacing: 0.03em;
-  color: #1a1a17;
+  color: var(--header-text);
 }
 
 .site-header__subtitle {
   margin: 0;
   font-size: 0.95rem;
-  color: #5a594f;
+  color: var(--header-tagline-text);
 }
 
 /* LCD 表示エリア */
@@ -86,20 +100,13 @@ body {
   display: block;
   image-rendering: pixelated;
   /*
-   * 実機の筐体を思わせる縁取り。box-shadow はレイアウトサイズに影響しないため、
-   * canvas.ts の利用可能幅計算（親要素の clientWidth 基準）に干渉しない。
-   *
-   * 【判断した点・理由】 縁の太さ（spread 合計 6px）は `.screen-area` の左右
-   * padding（狭い画面でも 1rem = 16px）より確実に小さくした。canvas は
-   * 親の clientWidth を超えない幅に収まる設計だが、その幅は padding を含んだ
-   * 値のため、理論上 canvas が padding 領域いっぱいまで広がるケースがある。
-   * 縁取りがその padding を超えないようにして、どんな画面幅でも横スクロールが
-   * 出ないようにしている。
+   * 同一作者の WebNP2 / WebX68k と同じ「下に落ちる影」で画面を浮かせる。
+   * spread を使う縁取りは廃止した（box-shadow はレイアウトサイズに影響しないため、
+   * canvas.ts の利用可能幅計算（親要素の clientWidth 基準）への干渉はどちらでも無い）。
    */
   box-shadow:
-    0 0 0 4px #3a3a36,
-    0 0 0 6px #7d7c72,
-    0 3px 8px rgba(0, 0, 0, 0.2);
+    0 18px 40px #00000059,
+    0 4px 14px #00000040;
   border-radius: 2px;
 }
 
