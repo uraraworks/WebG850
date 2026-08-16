@@ -18,13 +18,13 @@
  */
 
 import type { Stmt } from '../basic/ast.ts';
-import { appendErrorLineSuffix, BasicError, UnsupportedError } from '../basic/errors.ts';
+import { ErrorCode, appendErrorLineSuffix, BasicError, UnsupportedError } from '../basic/errors.ts';
 import { parseDirectStatements } from '../basic/directLine.ts';
 import { BUILTINS } from '../basic/functions/index.ts';
 import { Interpreter } from '../basic/interpreter.ts';
 import { parseProgram } from '../basic/parser.ts';
 import { ProgramStore } from '../basic/programStore.ts';
-import { directModePrompt, formatErrorPrefix } from '../basic/uncertain.ts';
+import { directModePrompt, formatErrorPrefix, initialBasicMode } from '../basic/uncertain.ts';
 import type { Machine } from '../machine/machine.ts';
 import { applyCapsLock } from '../machine/keyboard.ts';
 import { TEXT_COLS } from '../machine/screen.ts';
@@ -33,6 +33,25 @@ import { browserScheduler, Runtime, type Scheduler } from './runtime.ts';
 
 /** 行番号で始まる行を判定する正規表現。先頭の空白を許し、行番号と本文の間の空白は任意。 */
 const NUMBERED_LINE = /^\s*(\d+)\s*(.*)$/;
+
+/** 動作モード。実機の `BASIC` キーで切り替わる（`docs/spec/operation_behavior.md` 事項4）。 */
+export type BasicMode = 'PRO' | 'RUN';
+
+/**
+ * `BASIC` キーに割り当てる物理キー。
+ *
+ * 【判断した点・理由】 実機の `BASIC` キーに対応する PC キーボード上のキーは
+ * 仕様書に記載が無い。`machine/keyboard.ts` の `BREAK_KEY`（`Escape`）が既に
+ * 「実行中の処理を止める」役割を占有しているため衝突を避ける必要がある。
+ * - `F2` を採用: (1) 印字可能文字ではないため `printableChar` に一切引っかからず
+ *   ラインエディタへの誤入力を作り込まずに済む、(2) ブラウザ標準のショートカット
+ *   （タブ切替・戻る等）と衝突しない、(3) キーボード上で独立した機能キーであり
+ *   「モードを切り替える」という他と違う操作であることを直感的に示せる。
+ * 差し替える場合はこの定数だけ変更すればよい。画面上のボタン（操作バー）でも
+ * 同じ `toggleMode()` を呼べるようにしてあるため、物理キーを持たないスマートフォンでも
+ * 切り替えられる（`BREAK` ボタンを置いたのと同じ理由。`ui/main.ts` 参照）。
+ */
+const MODE_TOGGLE_KEY = 'F2';
 
 export interface DirectModeCallbacks {
   /** 画面を再描画する。`Runtime` へそのまま渡す他、行編集・エラー表示の直後にも呼ぶ。 */
@@ -64,6 +83,13 @@ export class DirectMode {
   /** 確定（Enter）前の、現在入力中の1行分のテキスト。 */
   private lineBuffer = '';
 
+  /**
+   * 現在の動作モード（PRO/RUN）。既定値は `uncertain.ts` の `INITIAL_BASIC_MODE`
+   * （未確認、暫定 PRO）。`initialBasicMode()` 経由で取得することで
+   * `markUncertainUsed` がここを通るたびに1回記録される。
+   */
+  private mode: BasicMode = initialBasicMode();
+
   constructor(
     private readonly machine: Machine,
     private readonly callbacks: DirectModeCallbacks,
@@ -87,6 +113,21 @@ export class DirectMode {
   /** BREAK ボタン相当。実行中ならダイレクトモード側の実行へ BREAK を要求する。 */
   requestBreak(): void {
     this.interpreter.requestBreak();
+  }
+
+  /** 現在の動作モード（画面右上のインジケータ表示・テストに使う）。 */
+  getMode(): BasicMode {
+    return this.mode;
+  }
+
+  /**
+   * `BASIC` キー／画面上のモード切替ボタン相当。PRO⇔RUN を入れ替える。
+   * 実行中は何もしない（打鍵経路と同じ防御。`handleKeyDown`/`runCommand` 参照）。
+   */
+  toggleMode(): void {
+    if (this.isRunning()) return;
+    this.mode = this.mode === 'PRO' ? 'RUN' : 'PRO';
+    this.callbacks.render();
   }
 
   /**
@@ -118,6 +159,10 @@ export class DirectMode {
     }
     if (isBackspaceKeyEvent(e)) {
       this.backspace();
+      return;
+    }
+    if (isModeToggleKeyEvent(e)) {
+      this.toggleMode();
       return;
     }
     const ch = printableChar(e);
@@ -214,10 +259,17 @@ export class DirectMode {
 
     if (text.trim() === '') return; // 空行 Enter は何もしない。
 
-    const m = NUMBERED_LINE.exec(text);
-    if (m) {
-      this.commitNumberedLine(Number(m[1]), m[2]);
-      return;
+    // 【PRO/RUN モード分岐】 数字始まりの入力を「行番号（格納）」と「計算式
+    // （即時評価）」のどちらとして扱うかは、実機同様このモードだけで決まる
+    // （`docs/spec/operation_behavior.md` 事項4）。RUN モードでは行番号らしき
+    // 判定そのものを行わず、常にダイレクト実行へ回す（`30` は式として評価され、
+    // `directLine.ts` の「文の先頭に来ない先読み」により暗黙の PRINT になる）。
+    if (this.mode === 'PRO') {
+      const m = NUMBERED_LINE.exec(text);
+      if (m) {
+        this.commitNumberedLine(Number(m[1]), m[2]);
+        return;
+      }
     }
     this.executeDirect(text);
   }
@@ -253,6 +305,18 @@ export class DirectMode {
       return;
     }
     if (statements.length === 0) return;
+
+    // `LIST` は PRO モード限定（`docs/spec/basic_commands.yaml` の LIST の
+    // summary/notes に両版一致で明記。`basic_errors.yaml` code 12 が
+    // 「PROモード/RUNモードの選択が誤っている」に対応する）。RUN モード中に
+    // 打たれたら、実行そのものへ回さずここでエラー表示して終える。
+    if (this.mode === 'RUN' && statements.some((s) => s.kind === 'ListStmt')) {
+      this.reportError(
+        new BasicError(ErrorCode.MODE_MISMATCH, 'LIST は PRO モードでのみ使用できます'),
+        null,
+      );
+      return;
+    }
 
     // `Runtime.startDirect` は rAF 駆動のため、ここではまだ何も実行されていない
     // （最初のフレームが回るまで `Interpreter.running` は true にならない）。
@@ -341,4 +405,9 @@ function isEnterKeyEvent(e: KeyboardEvent): boolean {
 /** `key`/`code` の両方を見て Backspace を判定する。 */
 function isBackspaceKeyEvent(e: KeyboardEvent): boolean {
   return e.key === 'Backspace' || e.code === 'Backspace';
+}
+
+/** `key`/`code` の両方を見て `BASIC` キー割当（`MODE_TOGGLE_KEY`）を判定する。 */
+function isModeToggleKeyEvent(e: KeyboardEvent): boolean {
+  return e.key === MODE_TOGGLE_KEY || e.code === MODE_TOGGLE_KEY;
 }

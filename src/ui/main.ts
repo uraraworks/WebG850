@@ -91,8 +91,13 @@ function main(): void {
   const runButton = document.querySelector<HTMLButtonElement>('#btn-run');
   const breakButton = document.querySelector<HTMLButtonElement>('#btn-break');
   const listButton = document.querySelector<HTMLButtonElement>('#btn-list');
-  if (runButton === null || breakButton === null || listButton === null) {
-    throw new Error('操作ボタン（RUN/BREAK/LIST）が見つかりません');
+  const modeButton = document.querySelector<HTMLButtonElement>('#btn-mode');
+  if (runButton === null || breakButton === null || listButton === null || modeButton === null) {
+    throw new Error('操作ボタン（RUN/BREAK/LIST/BASIC）が見つかりません');
+  }
+  const modeIndicator = document.querySelector<HTMLDivElement>('#mode-indicator');
+  if (modeIndicator === null) {
+    throw new Error('#mode-indicator が見つかりません');
   }
   const panelToggleButton = document.querySelector<HTMLButtonElement>('#btn-panel-editor');
   const editorPanel = document.querySelector<HTMLDivElement>('#editor-panel');
@@ -112,7 +117,29 @@ function main(): void {
   const { render, resize } = attachCanvas(canvas, machine.screen, {
     getCursor: () => directMode?.getCursorOverlay() ?? null,
   });
-  render();
+
+  /**
+   * `DirectMode` へ渡す再描画コールバック。canvas の再描画に加えて、
+   * モードインジケータ（RUN/PRO の点灯状態）も毎回更新する。DirectMode 側の
+   * 状態変化（行編集・モード切替・実行完了等）はすべてこの1つの `render` を
+   * 経由するため、ここへ1箇所差し込むだけで漏れなく追従する。
+   */
+  const renderAll = (): void => {
+    render();
+    updateModeIndicator();
+  };
+
+  /** 画面右上相当のモード表示（DOM）を現在の `DirectMode` の状態に合わせる。 */
+  function updateModeIndicator(): void {
+    const mode = directMode?.getMode() ?? 'PRO';
+    for (const el of Array.from(modeIndicator!.querySelectorAll<HTMLElement>('[data-indicator]'))) {
+      const isModeSlot = el.dataset.indicator === 'RUN' || el.dataset.indicator === 'PRO';
+      if (!isModeSlot) continue; // TEXT/CASL/STAT/CAPS/DEG は今回未実装のため常に消灯のまま。
+      el.classList.toggle('mode-indicator__item--active', el.dataset.indicator === mode);
+    }
+  }
+
+  renderAll();
   window.addEventListener('resize', resize);
 
   // AudioContext はユーザー操作（クリック・キー押下等）のイベントハンドラの中でしか
@@ -128,7 +155,8 @@ function main(): void {
   window.addEventListener('keydown', attachAudioOnce, { once: true });
   window.addEventListener('click', attachAudioOnce, { once: true });
 
-  directMode = new DirectMode(machine, { render });
+  directMode = new DirectMode(machine, { render: renderAll });
+  updateModeIndicator(); // 初期状態（既定 PRO）を反映する。
 
   // キー入力の行き先分離（依頼「3./4.」）：
   // - プログラム入力欄パネル（`#program-input` や中のボタン）にフォーカスがあるあいだの
@@ -167,6 +195,12 @@ function main(): void {
   // BREAK はコマンドではなくキー相当なので、従来どおり実行中断の直接要求にする。
   breakButton.addEventListener('click', () => {
     directMode!.requestBreak();
+  });
+  // BASIC ボタン：実機の BASIC キー相当（PRO/RUN モード切替）。物理キー
+  // （`ui/directMode.ts` の `MODE_TOGGLE_KEY`）を持たないスマートフォンのための
+  // 画面上の代替経路（BREAK ボタンと同じ理由）。
+  modeButton.addEventListener('click', () => {
+    directMode!.toggleMode();
   });
 
   // 入力欄パネルの開閉（同一作者の WebX68k の #btn-panel-keyboard と同じ流儀：

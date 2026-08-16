@@ -98,10 +98,50 @@ body {
    * 内容サイズ（padding + LCD 実寸）に収める。
    */
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   width: 100%;
   padding: 2rem 1rem;
+  gap: 0.5rem;
+}
+
+/*
+ * モードインジケータ（RUN/PRO 等）。
+ *
+ * 実機は LCD 周辺の固定セグメント（ドットマトリクスの外）に表示するため、
+ * ここでも #screen（144×48 のビットマップ）とは別の DOM 要素として置く。
+ * `machine/screen.ts` の Screen（POINT が参照する実体）には一切触れていない
+ * （依頼「ビットマップを侵食しないこと」）。
+ */
+.mode-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 0.7rem;
+  font-family: monospace;
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+
+.mode-indicator__item {
+  color: var(--footer-text);
+  opacity: 0.25;
+}
+
+/* 現在のモードだけ点灯させる（RUN/PRO のどちらか一方）。 */
+.mode-indicator__item--active {
+  color: #6fcf7a;
+  opacity: 1;
+}
+
+/*
+ * 未実装項目（TEXT/CASL/STAT/CAPS/DEG）。並べてはいるが「点灯しない」ことで
+ * 未対応であることをそのまま見せる（消して隠さない。親 CLAUDE.md の方針）。
+ */
+.mode-indicator__item--unimplemented {
+  opacity: 0.15;
 }
 
 #screen {

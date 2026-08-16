@@ -31,7 +31,8 @@ export type UncertainId =
   | 'CURSOR_BLINK_PERIOD_MS'
   | 'CURSOR_VISIBLE_WHEN_IDLE_ONLY'
   | 'DIRECT_MODE_PROMPT'
-  | 'ERROR_PREFIX_QUESTION_MARK';
+  | 'ERROR_PREFIX_QUESTION_MARK'
+  | 'INITIAL_BASIC_MODE';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -542,4 +543,39 @@ export const ERROR_PREFIX_QUESTION_MARK = true;
 export function formatErrorPrefix(code: number): string {
   markUncertainUsed('ERROR_PREFIX_QUESTION_MARK');
   return ERROR_PREFIX_QUESTION_MARK ? `?ERROR ${code}` : `ERROR ${code}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 電源投入直後の動作モード（PRO / RUN）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 電源投入直後（＝このエミュレータの起動直後）の動作モード。
+ *
+ * 【推測で決めた点・理由】 `docs/spec/operation_behavior.md`「未確定のまま残る
+ * 事項」の「電源投入直後の画面表示」のとおり、実機の電源投入直後がPRO/RUN
+ * どちらのモードかは、参照した第三者の使用記録3本のいずれにも記載が無く
+ * 未確定である。
+ *
+ * ここでは **PRO を暫定採用する**。理由：ダイレクトモードは「電源を入れたら
+ * すぐ画面に打てる」ことを重視しており（`ui/directMode.ts` 冒頭コメント）、
+ * 初見の利用者が最初に触るのは大抵「行番号付きでプログラムを打つ」操作。
+ * RUN モードを既定にすると、数字始まりの入力がプログラムとして格納されず
+ * 「何を打っても消える（計算されるだけ）」ように見え、初見の利用者が
+ * 一番詰まりやすい形になる。PRO を既定にしておけば、電卓的な計算だけしたい
+ * 利用者は `BASIC` キー（ホスト割当は `ui/directMode.ts` の `toggleMode` 参照）
+ * を1回押すだけで RUN へ切り替えられるため、詰まりの被害が小さい側を選んだ。
+ *
+ * 参照: docs/spec/operation_behavior.md「未確定のまま残る事項」
+ */
+export const INITIAL_BASIC_MODE: 'PRO' | 'RUN' = 'PRO';
+
+/**
+ * 起動時の動作モードを取得する。`directModePrompt()` と同じ形（呼ぶたびに
+ * `markUncertainUsed` を1回集約して呼ぶ）で、`ui/directMode.ts` の
+ * コンストラクタから1回だけ呼ぶ想定。
+ */
+export function initialBasicMode(): 'PRO' | 'RUN' {
+  markUncertainUsed('INITIAL_BASIC_MODE');
+  return INITIAL_BASIC_MODE;
 }

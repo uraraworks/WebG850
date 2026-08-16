@@ -16,6 +16,22 @@
 
     <main class="screen-area">
       <canvas id="screen" width="144" height="48"></canvas>
+      <!--
+        実機は LCD 周辺の固定セグメントに RUN/PRO 等を表示する（ドットマトリクスの
+        外側）。ここも同じく canvas の外の DOM 要素として置き、144×48 のビットマップ
+        （POINT が参照する Screen）には一切触れない。将来 TEXT/CASL/STAT/CAPS/DEG を
+        追加しやすいよう、未実装の項目も「消灯（グレーアウト）」状態で先に並べておく
+        （「未実装は無言で隠さない」方針。docs/spec/operation_behavior.md 事項4）。
+      -->
+      <div id="mode-indicator" class="mode-indicator" aria-live="polite">
+        <span class="mode-indicator__item" data-indicator="RUN">RUN</span>
+        <span class="mode-indicator__item" data-indicator="PRO">PRO</span>
+        <span class="mode-indicator__item mode-indicator__item--unimplemented" data-indicator="TEXT">TEXT</span>
+        <span class="mode-indicator__item mode-indicator__item--unimplemented" data-indicator="CASL">CASL</span>
+        <span class="mode-indicator__item mode-indicator__item--unimplemented" data-indicator="STAT">STAT</span>
+        <span class="mode-indicator__item mode-indicator__item--unimplemented" data-indicator="CAPS">CAPS</span>
+        <span class="mode-indicator__item mode-indicator__item--unimplemented" data-indicator="DEG">DEG</span>
+      </div>
     </main>
 
     <div class="control-bar">
@@ -25,6 +41,14 @@
           BREAK
         </button>
         <button type="button" id="btn-list" class="control-bar__button">LIST</button>
+        <button
+          type="button"
+          id="btn-mode"
+          class="control-bar__button"
+          aria-label="PRO/RUN モードを切り替え（実機の BASIC キー相当）"
+        >
+          BASIC
+        </button>
         <button
           type="button"
           id="btn-panel-editor"

@@ -13,7 +13,7 @@ import { Machine } from '../src/machine/machine.ts';
 import { TEXT_COLS } from '../src/machine/screen.ts';
 import { formatNumber } from '../src/basic/number.ts';
 import { parseDirectStatements } from '../src/basic/directLine.ts';
-import { BasicError, UnsupportedError } from '../src/basic/errors.ts';
+import { BasicError, ErrorCode, UnsupportedError } from '../src/basic/errors.ts';
 
 /** test/runtime.test.ts / test/app.test.ts と同じ、手動で1フレームずつ進められるスケジューラ。 */
 function manualScheduler(): Scheduler & { tick(): void; tickAll(max?: number): void } {
@@ -505,5 +505,100 @@ describe('DirectMode: カーソルは LCD のビットマップを汚さない',
     scheduler.tick();
     expect(dm.isRunning()).toBe(true);
     expect(dm.getCursorOverlay()).toBeNull();
+  });
+});
+
+describe('DirectMode: PRO/RUN モード（docs/spec/operation_behavior.md 事項4）', () => {
+  it('既定モードは PRO', () => {
+    const { dm } = buildDirectMode();
+    expect(dm.getMode()).toBe('PRO');
+  });
+
+  it('BASIC キー割当（F2）で PRO⇔RUN が切り替わる', () => {
+    const { dm } = buildDirectMode();
+    dm.handleKeyDown(keyEvent('F2'));
+    expect(dm.getMode()).toBe('RUN');
+    dm.handleKeyDown(keyEvent('F2'));
+    expect(dm.getMode()).toBe('PRO');
+  });
+
+  it('toggleMode() でも切り替わる（画面上のボタン相当）', () => {
+    const { dm } = buildDirectMode();
+    dm.toggleMode();
+    expect(dm.getMode()).toBe('RUN');
+  });
+
+  it('PRO モードでは行番号始まりの入力がプログラムへ格納される', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    type(dm, '30 PRINT "A"');
+    enter(dm);
+    type(dm, 'LIST');
+    enter(dm);
+    scheduler.tickAll();
+
+    expectScreenText(machine, '30 PRINT "A"\nLIST\n30 PRINT "A"\nOK\n');
+  });
+
+  it('RUN モードでは行番号始まりの入力が格納されず、計算結果として表示される（30 → 30）', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    dm.toggleMode();
+    expect(dm.getMode()).toBe('RUN');
+
+    type(dm, '30');
+    enter(dm);
+    scheduler.tickAll();
+
+    expectScreenText(machine, `30\n${formatNumber(30)}\nOK\n`);
+
+    // プログラムへ格納されていないことも確認する（PRO へ戻して LIST が空）。
+    dm.toggleMode();
+    type(dm, 'LIST');
+    enter(dm);
+    scheduler.tickAll();
+    expectScreenText(machine, `30\n${formatNumber(30)}\nOK\nLIST\nOK\n`);
+  });
+
+  it('RUN モードで LIST を打つと ERROR 12（PRO/RUNモードの選択が誤っている）になる', () => {
+    const { dm, machine, scheduler } = buildDirectMode();
+    // 先に PRO モードでプログラムを1行格納しておく（LIST が実際に動けば見えてしまう）。
+    type(dm, '10 PRINT "X"');
+    enter(dm);
+    dm.toggleMode();
+    expect(dm.getMode()).toBe('RUN');
+
+    type(dm, 'LIST');
+    enter(dm);
+    scheduler.tickAll();
+
+    // 他の構文エラー表示（reportError 経由）と同じく、この時点ではまだ次の
+    // 入力待ちプロンプト（OK）は出ない（Runtime を経由せず即座に return するため。
+    // 既存の「構文エラーの行は…」テストと同じ挙動）。
+    expect(ErrorCode.MODE_MISMATCH).toBe(12);
+    expectScreenText(machine, `10 PRINT "X"\nLIST\n?ERROR ${ErrorCode.MODE_MISMATCH}\n`);
+  });
+
+  it('モードを切り替えても LCD のビットマップ（Screen）は変化しない（インジケータは DOM 側の責務）', () => {
+    const { dm, machine } = buildDirectMode();
+    type(dm, 'AB');
+    const before = machine.screen.dumpAscii(0, 0, 144, 48);
+
+    dm.toggleMode();
+
+    expect(machine.screen.dumpAscii(0, 0, 144, 48)).toBe(before);
+  });
+
+  it('実行中は BASIC キー／toggleMode() を受け付けない', () => {
+    const { dm, scheduler } = buildDirectMode();
+    type(dm, '10 FOR I=1 TO 100000');
+    enter(dm);
+    type(dm, '20 NEXT I');
+    enter(dm);
+    type(dm, 'RUN');
+    enter(dm);
+    scheduler.tick();
+    expect(dm.isRunning()).toBe(true);
+
+    dm.handleKeyDown(keyEvent('F2'));
+    expect(dm.getMode()).toBe('PRO'); // 実行中は無視されるので既定のまま
   });
 });
