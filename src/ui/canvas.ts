@@ -89,10 +89,51 @@ export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen): CanvasB
   function resize(): void {
     const parent = canvas.parentElement;
     const availableWidth = parent?.clientWidth || window.innerWidth || SCREEN_WIDTH * DEFAULT_SCALE;
-    const availableHeight = parent?.clientHeight || window.innerHeight || SCREEN_HEIGHT * DEFAULT_SCALE;
+    const availableHeight = computeAvailableHeight(parent);
     const scale = computeScale(availableWidth, availableHeight) || DEFAULT_SCALE;
     canvas.style.width = `${SCREEN_WIDTH * scale}px`;
     canvas.style.height = `${SCREEN_HEIGHT * scale}px`;
+  }
+
+  /**
+   * 「利用可能な高さ」を、親要素（`.screen-area`）自身の clientHeight ではなく、
+   * window.innerHeight から前後の兄弟要素（ヘッダー・フッター）の実測高さを
+   * 差し引いて求める。
+   *
+   * 【判断した点・理由】 以前は親要素に `flex: 1 0 auto` を掛けて画面いっぱいに
+   * 伸ばし、その clientHeight をそのまま利用可能高さとして使っていた。しかし
+   * この「伸ばす」こと自体が、狭い縦長画面で LCD の下（または上）に巨大な
+   * 空白を生む原因だった（`style.css` の `.screen-area` コメント参照）。
+   * 親要素を伸ばさずに内容サイズへ戻すと、今度は clientHeight が LCD 自身の
+   * 現在サイズに依存する循環参照になってしまう（縮めると高さが小さく測定され、
+   * 常に低倍率に固定される）。
+   *
+   * 兄弟要素の実測高さは LCD のサイズと無関係に決まる（ヘッダー・フッターの
+   * 内容で決まる）ため、これを使えば循環せずに「本来使ってよい高さ」を
+   * 求められる。値は旧実装（伸ばした .screen-area の clientHeight）とほぼ
+   * 一致する——伸ばしていたときの高さも結局「ビューポート − ヘッダー −
+   * フッター」だったため。
+   */
+  function computeAvailableHeight(parent: HTMLElement | null): number {
+    if (parent === null) {
+      return window.innerHeight || SCREEN_HEIGHT * DEFAULT_SCALE;
+    }
+    let height = window.innerHeight;
+    for (
+      let sibling = parent.previousElementSibling;
+      sibling !== null;
+      sibling = sibling.previousElementSibling
+    ) {
+      height -= sibling.getBoundingClientRect().height;
+    }
+    for (
+      let sibling = parent.nextElementSibling;
+      sibling !== null;
+      sibling = sibling.nextElementSibling
+    ) {
+      height -= sibling.getBoundingClientRect().height;
+    }
+    return height > 0 ? height : window.innerHeight || SCREEN_HEIGHT * DEFAULT_SCALE;
   }
 
   function render(): void {
