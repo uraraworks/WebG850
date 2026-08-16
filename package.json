@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "gen": "node tools/gen_command_table.mjs"
+    "gen": "node tools/gen_command_table.mjs",
+    "measure": "vite-node tools/measure_corpus.ts"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

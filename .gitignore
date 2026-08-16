@@ -21,3 +21,6 @@ roms/
 # 作業用の一時ファイル
 tmp/
 *.log
+
+# tools/measure_corpus.ts の計測出力（第三者作品コーパスに対する結果を含むため非公開）
+measure-output/
