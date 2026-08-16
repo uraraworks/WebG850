@@ -161,7 +161,13 @@ export function tokenize(source: string): Token[] {
       continue;
     }
 
-    if (isDigit(ch)) {
+    if (isDigit(ch) || (ch === '.' && isDigit(source[pos + 1]))) {
+      // 【不確定仕様】 整数部を省略した小数リテラル（`.5`）。マニュアルに
+      // 明記は無いが実在作品コーパスの計測で複数件確認できたため受理する。
+      // readNumber は先頭が '.' でも整数部0桁のまま小数部から読める。
+      // "A.B" のような識別子由来の誤読を避けるため、'.' の直後が数字の
+      // ときだけ数値リテラルとして扱う（数字が続かなければ従来通り
+      // 未知文字トークンに落ちる）。
       const { token, next } = readNumber(source, pos);
       tokens.push(token);
       pos = next;
