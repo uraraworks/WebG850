@@ -24,7 +24,7 @@ import {
   Evaluator,
   VariableStore,
 } from './evaluator.js';
-import { BasicError, ErrorCode, UnsupportedError } from './errors.js';
+import { appendErrorLineSuffix, BasicError, ErrorCode, UnsupportedError } from './errors.js';
 import type { Machine } from '../machine/machine.ts';
 import {
   ANGLE_MODE_RESET_ON_RUN,
@@ -339,7 +339,9 @@ export class Interpreter {
         result = this.executeStatement(stmt);
       } catch (e) {
         if (e instanceof BasicError) {
-          this.haltWithMessage(`ERROR ${e.code}`, e.lineNumber ?? line.lineNumber, false, true);
+          // `?` を付ける根拠は `appendErrorLineSuffix`（errors.ts）のコメント参照
+          // （以前はここに `?` が無く、ダイレクト実行側とだけ食い違っていた）。
+          this.haltWithMessage(`?ERROR ${e.code}`, e.lineNumber ?? line.lineNumber, false, true);
           continue;
         }
         if (e instanceof UnsupportedError) {
@@ -367,7 +369,11 @@ export class Interpreter {
     }
   }
 
-  /** 実行を停止し、必要ならメッセージを画面へ出す。 */
+  /**
+   * 実行を停止し、必要ならメッセージを画面へ出す。
+   * 行番号が無い（ダイレクト実行中の停止）場合は `IN` 部分ごと省く
+   * （`appendErrorLineSuffix` 参照。以前は `IN ?` という埋め草が出ていた）。
+   */
   private haltWithMessage(
     prefix: string,
     lineNumber: number | null | undefined,
@@ -377,8 +383,7 @@ export class Interpreter {
     this.running = false;
     this.contAvailable = contAvailable;
     if (printMessage) {
-      const n = lineNumber ?? '?';
-      this.machine.screen.writeText(`\n${prefix} IN ${n}\n`);
+      this.machine.screen.writeText(`\n${appendErrorLineSuffix(prefix, lineNumber)}\n`);
     }
   }
 

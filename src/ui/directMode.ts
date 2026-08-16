@@ -18,7 +18,7 @@
  */
 
 import type { Stmt } from '../basic/ast.ts';
-import { BasicError, UnsupportedError } from '../basic/errors.ts';
+import { appendErrorLineSuffix, BasicError, UnsupportedError } from '../basic/errors.ts';
 import { parseDirectStatements } from '../basic/directLine.ts';
 import { BUILTINS } from '../basic/functions/index.ts';
 import { Interpreter } from '../basic/interpreter.ts';
@@ -88,9 +88,16 @@ export class DirectMode {
     this.interpreter.requestBreak();
   }
 
-  /** 現在のテキストカーソル位置。実行中は `null`（表示しない。`uncertain.ts` の判断参照）。 */
+  /**
+   * 現在のテキストカーソル位置。実行中は `null`（表示しない。`uncertain.ts` の判断参照）。
+   *
+   * カーソルを返す＝カーソルを置く瞬間なので、その前に保留中の遅延スクロール
+   * （`Screen.resolveScrollForCursorPlacement`）を解決する。実行中は呼ばないため、
+   * 「出力中は先頭行が流れない」という既存の挙動には影響しない。
+   */
   getCursorOverlay(): CursorOverlayState | null {
     if (this.isRunning()) return null;
+    this.machine.screen.resolveScrollForCursorPlacement();
     const { col, row } = this.machine.screen.cursor;
     return { col, row };
   }
@@ -283,12 +290,19 @@ export class DirectMode {
     this.busy = false;
   }
 
+  /**
+   * 行番号部分の組み立ては `appendErrorLineSuffix`（`src/basic/errors.ts`）に
+   * 集約している。ダイレクト実行には行番号が無いので、`?` の埋め草は出さず
+   * 「IN 部分ごと省く」（旧実装は `IN ${lineNumber ?? '?'}` で `IN ?` を出していたが、
+   * 実機ブラウザで見ると不自然な表示だったため）。`?` の要否・書式の根拠は
+   * `appendErrorLineSuffix` のコメントを参照。
+   */
   private reportError(e: unknown, lineNumber: number | null): void {
     let message: string;
     if (e instanceof BasicError) {
-      message = `?ERROR ${e.code} IN ${e.lineNumber ?? lineNumber ?? '?'}`;
+      message = appendErrorLineSuffix(`?ERROR ${e.code}`, e.lineNumber ?? lineNumber);
     } else if (e instanceof UnsupportedError) {
-      message = `?UNSUPPORTED ${e.name_} IN ${e.lineNumber ?? lineNumber ?? '?'}`;
+      message = appendErrorLineSuffix(`?UNSUPPORTED ${e.name_}`, e.lineNumber ?? lineNumber);
     } else {
       message = '?ERROR (UNKNOWN)';
     }

@@ -59,8 +59,17 @@ function drawTestPattern(screen: Screen): void {
   screen.paint(125, bandTop + 8, 2);
 }
 
-/** プログラム入力欄の初期値。以前の起動時デモ相当の内容をそのまま置く。 */
-const SAMPLE_PROGRAM = '10 FOR I=1 TO 5\n20 PRINT I\n30 NEXT I\n40 PRINT "OK"';
+/**
+ * プログラム入力欄の初期値（起動時デモ）。
+ *
+ * 【直した点・理由】 カーソルを置く時点で保留中のスクロールを解決するよう
+ * 直したことで（`src/machine/screen.ts` の `resolveScrollForCursorPlacement`
+ * 参照）、入力待ちに戻った瞬間にもう1行分スクロールするようになった。
+ * 以前は `FOR I=1 TO 5` だったが、それだと最終行のカーソル用にもう1行必要になり
+ * 出力の先頭行が画面から欠けてしまう。実機ブラウザで実際に表示させて確認しながら
+ * `TO 3` まで減らし、"RUN" の実行結果とカーソル行が画面（6行）に収まるようにした。
+ */
+const SAMPLE_PROGRAM = '10 FOR I=1 TO 3\n20 PRINT I\n30 NEXT I\n40 PRINT "OK"';
 
 function main(): void {
   // ページ全体のレイアウト（背景色・ヘッダー/フッター配置等）は `src/ui/style.css` に

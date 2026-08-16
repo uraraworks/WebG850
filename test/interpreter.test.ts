@@ -77,7 +77,7 @@ describe('LET / PRINT', () => {
     expect(interpreter.running).toBe(false);
     expect(interpreter.contAvailable).toBe(false);
     const cmp = new Machine();
-    cmp.screen.writeText('\nERROR 90 IN 10\n');
+    cmp.screen.writeText('\n?ERROR 90 IN 10\n');
     expect(machine.screen.dumpAscii(0, 0, 144, 48)).toBe(cmp.screen.dumpAscii(0, 0, 144, 48));
   });
 
@@ -284,7 +284,7 @@ describe('DATA / READ / RESTORE', () => {
     const { machine, interpreter } = run('10 DATA 1\n20 READ A\n30 READ B');
     expect(interpreter.running).toBe(false);
     const cmp = new Machine();
-    cmp.screen.writeText('\nERROR 53 IN 30\n');
+    cmp.screen.writeText('\n?ERROR 53 IN 30\n');
     expect(machine.screen.dumpAscii(0, 0, 144, 48)).toBe(cmp.screen.dumpAscii(0, 0, 144, 48));
   });
 });
@@ -306,7 +306,7 @@ describe('配列', () => {
     const { machine, interpreter } = run('10 DIM A(2)\n20 A(3)=1');
     expect(interpreter.running).toBe(false);
     const cmp = new Machine();
-    cmp.screen.writeText('\nERROR 32 IN 20\n');
+    cmp.screen.writeText('\n?ERROR 32 IN 20\n');
     expect(machine.screen.dumpAscii(0, 0, 144, 48)).toBe(cmp.screen.dumpAscii(0, 0, 144, 48));
   });
 
@@ -323,11 +323,11 @@ describe('配列', () => {
 });
 
 describe('エラー表示', () => {
-  it('エラー時に ERROR <番号> IN <行番号> 相当を画面へ出す', () => {
+  it('エラー時に ?ERROR <番号> IN <行番号> 相当を画面へ出す', () => {
     const { machine } = run('10 A=1/0');
     const text = machine.screen.dumpAscii(0, 0, 144, 48);
     const cmp = new Machine();
-    cmp.screen.writeText('\nERROR 21 IN 10\n');
+    cmp.screen.writeText('\n?ERROR 21 IN 10\n');
     // 期待メッセージがそのままダンプに含まれる（先頭に描画されるはず）。
     expect(text).toBe(cmp.screen.dumpAscii(0, 0, 144, 48));
   });

@@ -224,6 +224,31 @@ describe('DirectMode: ダイレクト実行', () => {
     expectScreenText(machine, '10 PRINT "X"\nLIST\n10 PRINT "X"\nOK\n');
   });
 
+  it('行番号の無いダイレクト実行時のエラーは "IN ?" を出さない（実行中のゼロ除算）', () => {
+    // 実機ブラウザで発見したバグの再現：ダイレクト実行には行番号が無いのに
+    // `IN ?` という埋め草が出ていた。行番号が無い場合は IN 節ごと省く。
+    const { dm, machine, scheduler } = buildDirectMode();
+    type(dm, 'PRINT 1/0');
+    enter(dm);
+    scheduler.tickAll();
+
+    // `interpreter.ts` の `haltWithMessage` は既存仕様として先頭に空行を1つ出す
+    // （`\n${...}\n`）。ここで検証したいのは「IN ?」が出ないことなので、その仕様はそのまま。
+    expectScreenText(machine, 'PRINT 1/0\n\n?ERROR 21\nOK\n');
+  });
+
+  it('プログラム実行中のエラーは行番号付きで "?ERROR n IN m" と表示される', () => {
+    // ダイレクト実行の書式（? 付き）と揃える（以前は `?` の有無が食い違っていた）。
+    const { dm, machine, scheduler } = buildDirectMode();
+    type(dm, '10 PRINT 1/0');
+    enter(dm);
+    type(dm, 'RUN');
+    enter(dm);
+    scheduler.tickAll();
+
+    expectScreenText(machine, '10 PRINT 1/0\nRUN\n\n?ERROR 21 IN 10\nOK\n');
+  });
+
   it('構文エラーの行は既存のエラー表示を出し、プログラムへは格納されない', () => {
     const { dm, machine, scheduler } = buildDirectMode();
     type(dm, '10 @@@');
@@ -449,6 +474,24 @@ describe('DirectMode: カーソルは LCD のビットマップを汚さない',
     const after = machine.screen.dumpAscii(0, 0, 144, 48);
 
     expect(after).toEqual(before);
+  });
+
+  it('保留中の遅延スクロールがあっても、カーソルは既存の文字に重ならない位置へ置かれる', () => {
+    // 実機ブラウザで発見したバグの再現：エラー表示等で最下行に達し改行が
+    // 保留状態のまま入力待ちに戻ると、以前はカーソルがまだスクロールしていない
+    // 最下行の既存の文字の上に重なって描かれていた。
+    const { dm, machine } = buildDirectMode();
+    // 画面ちょうど6行分書いて、最下行での改行を保留状態にする。
+    machine.screen.writeText('1\n2\n3\n4\n5\nOK\n');
+    expect(machine.screen.cursor).toEqual({ col: 0, row: 5 }); // 保留中、まだ見た目は変わっていない
+
+    const overlay = dm.getCursorOverlay();
+
+    // カーソルを問い合わせた時点で保留中のスクロールが解決され、
+    // カーソル行(row5)は空になっている＝既存の文字と重ならない。
+    expect(overlay).toEqual({ col: 0, row: 5 });
+    const blankRow5 = new Machine().screen.dumpAscii(0, 5 * 8, 144, 8);
+    expect(machine.screen.dumpAscii(0, 5 * 8, 144, 8)).toBe(blankRow5);
   });
 
   it('実行中は null を返す（プログラム実行中はカーソルを表示しない設計）', () => {

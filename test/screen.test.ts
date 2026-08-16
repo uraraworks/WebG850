@@ -126,6 +126,37 @@ describe('screen: テキスト出力とスクロール（遅延スクロール�
     expect(screen.dumpAscii(0, 2 * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x5a));
   });
 
+  it('resolveScrollForCursorPlacement: 保留中のスクロールをカーソル設置のタイミングで解決できる', () => {
+    // 実機ブラウザで発見したバグの再現：最下行での改行が保留のまま
+    // 入力待ちに戻ると、カーソルは「まだスクロールしていない最下行」の
+    // 既存の文字の上に置かれてしまう。`resolveScrollForCursorPlacement` を
+    // 呼べば、その時点で実際にスクロールして最下行を空ける。
+    const screen = new Screen();
+    screen.writeText('1\n2\n3\n4\n5\nOK\n'); // 6行ちょうど＋最下行での改行＝保留あり
+
+    // 呼ぶ前はまだスクロールしていない（row0の'1'が残っている）。
+    expect(screen.dumpAscii(0, 0, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x31));
+
+    screen.resolveScrollForCursorPlacement();
+
+    // スクロールが実際に起き、先頭行が押し出されてカーソル行(row5)が空く。
+    expect(screen.dumpAscii(0, 0, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x32)); // '2'
+    expect(screen.cursor).toEqual({ col: 0, row: 5 });
+    const blankRow5 = new Screen().dumpAscii(0, 5 * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
+    expect(screen.dumpAscii(0, 5 * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)).toBe(blankRow5);
+  });
+
+  it('resolveScrollForCursorPlacement: 保留が無ければ何もしない（複数回呼んでも無害）', () => {
+    const screen = new Screen();
+    screen.writeText('A');
+    const before = screen.dumpAscii(0, 0, 144, 48);
+
+    screen.resolveScrollForCursorPlacement();
+    screen.resolveScrollForCursorPlacement();
+
+    expect(screen.dumpAscii(0, 0, 144, 48)).toBe(before);
+  });
+
   it('長い出力で複数回スクロールしても正しく流れる（既存動作の回帰確認）', () => {
     const screen = new Screen();
     // 8行ぶん出力（6行の画面に対して2回スクロールが起きるはず）。
