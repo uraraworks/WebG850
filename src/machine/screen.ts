@@ -11,7 +11,13 @@
  * セルの左上に詰めて描く（右 1 列・下 1 行が字間／行間の空白）。
  */
 
-import { CIRCLE_ANGLE_MAX, CIRCLE_ANGLE_MIN, CIRCLE_NEGATIVE_ANGLE_MEANS_SECTOR } from '../basic/uncertain.ts';
+import {
+  CIRCLE_ANGLE_MAX,
+  CIRCLE_ANGLE_MIN,
+  CIRCLE_NEGATIVE_ANGLE_MEANS_SECTOR,
+  markUncertainUsed,
+  SCROLL_DEFERRED_UNTIL_NEXT_WRITE,
+} from '../basic/uncertain.ts';
 import { FONT_GLYPH_HEIGHT, FONT_GLYPH_WIDTH, getGlyph } from './font.ts';
 
 export const SCREEN_WIDTH = 144;
@@ -130,6 +136,11 @@ export class Screen {
   private cursorRow = 0;
   private gCursorX = 0;
   private gCursorY = 0;
+  /**
+   * 最下行での改行によりスクロールが保留中かどうか。
+   * `SCROLL_DEFERRED_UNTIL_NEXT_WRITE`（不確定仕様、詳細は uncertain.ts）参照。
+   */
+  private scrollPending = false;
 
   constructor() {
     this.dots = new Uint8Array(SCREEN_WIDTH * SCREEN_HEIGHT);
@@ -244,41 +255,63 @@ export class Screen {
     }
   }
 
-  /** カーソル位置を設定する（範囲外は画面内へクランプ）。 */
+  /** カーソル位置を設定する（範囲外は画面内へクランプ）。カーソル移動により保留中のスクロールは解除する。 */
   locate(col: number, row: number): void {
     this.cursorCol = Math.max(0, Math.min(TEXT_COLS - 1, col));
     this.cursorRow = Math.max(0, Math.min(TEXT_ROWS - 1, row));
+    this.scrollPending = false;
   }
 
-  /** 画面消去＋カーソルを左上へ戻す（テキストカーソル・グラフィックカーソルとも）。 */
+  /** 画面消去＋カーソルを左上へ戻す（テキストカーソル・グラフィックカーソルとも）。保留中のスクロールも解除する。 */
   cls(): void {
     this.dots.fill(0);
     this.cursorCol = 0;
     this.cursorRow = 0;
     this.gCursorX = 0;
     this.gCursorY = 0;
+    this.scrollPending = false;
   }
 
-  /** 最下行での改行時に呼ぶ。テキスト1行分＝8ドットを上へ詰め、最下行をクリアする。 */
+  /** テキスト1行分＝8ドットを上へ詰め、最下行をクリアする。 */
   private scrollUp(): void {
     const rowDots = SCREEN_WIDTH * CELL_HEIGHT;
     this.dots.copyWithin(0, rowDots);
     this.dots.fill(0, this.dots.length - rowDots);
   }
 
+  /**
+   * 最下行での改行時に呼ぶ。`SCROLL_DEFERRED_UNTIL_NEXT_WRITE`（不確定仕様）が
+   * `true` の場合、この時点ではスクロールせず「次に文字が書かれたら
+   * スクロールする」という保留状態にするだけに留める。
+   * `false`（旧実装）の場合はその場でスクロールする。
+   */
   private newline(): void {
     this.cursorCol = 0;
     if (this.cursorRow < TEXT_ROWS - 1) {
       this.cursorRow++;
+      return;
+    }
+    // cursorRow は既に最下行(TEXT_ROWS-1)のまま。
+    if (SCROLL_DEFERRED_UNTIL_NEXT_WRITE) {
+      markUncertainUsed('SCROLL_DEFERRED_UNTIL_NEXT_WRITE');
+      this.scrollPending = true;
     } else {
       this.scrollUp();
-      // cursorRow は既に最下行(TEXT_ROWS-1)のまま。
     }
+  }
+
+  /** 保留中のスクロールがあれば、実際に文字を書く直前にこれを呼んで解消する。 */
+  private resolvePendingScroll(): void {
+    if (!this.scrollPending) return;
+    this.scrollPending = false;
+    this.scrollUp();
   }
 
   /**
    * 文字列をカーソル位置から書き込む。`\n` で改行し、桁が右端(24桁目)を
-   * 超えたら自動的に折り返す。最下行での改行はスクロールを起こす。
+   * 超えたら自動的に折り返す。最下行での改行は即座にはスクロールせず、
+   * 次に文字が書かれる時点で初めてスクロールする（遅延スクロール、
+   * `SCROLL_DEFERRED_UNTIL_NEXT_WRITE` 参照）。
    */
   writeText(s: string): void {
     for (const ch of s) {
@@ -286,6 +319,7 @@ export class Screen {
         this.newline();
         continue;
       }
+      this.resolvePendingScroll();
       this.putChar(this.cursorCol, this.cursorRow, ch.charCodeAt(0));
       this.cursorCol++;
       if (this.cursorCol >= TEXT_COLS) {

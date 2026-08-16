@@ -25,7 +25,8 @@ export type UncertainId =
   | 'BEEP_PITCH_LINEAR_INTERPOLATION'
   | 'BEEP_DURATION_AS_PERIOD_COUNT'
   | 'INPUT_ON_INVALID_NUMBER'
-  | 'GRAPHICS_CURSOR_FOLLOWS_DRAWING';
+  | 'GRAPHICS_CURSOR_FOLLOWS_DRAWING'
+  | 'SCROLL_DEFERRED_UNTIL_NEXT_WRITE';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -383,3 +384,29 @@ export const INPUT_ON_INVALID_NUMBER_REDO = true;
  * 参照: docs/spec/basic_commands.yaml の LINE エントリの params(x1,y1) notes
  */
 export const GRAPHICS_CURSOR_FOLLOWS_DRAWING = true;
+
+// ─────────────────────────────────────────────────────────────
+// 最下行での改行スクロールのタイミング
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `true` なら最下行での改行を「次に文字が書かれる時点まで」遅延スクロールとして
+ * 保留する（端末・多くのポケコンBASICの一般的挙動）。`false` なら（旧実装）
+ * 改行が発生した瞬間にその場でスクロールする。
+ *
+ * 【推測で決めた点・理由】 `docs/design/phase1_architecture.md` にスクロールの
+ * 発火タイミングの記載が無く未確定。旧実装（即時スクロール）では、画面行数
+ * ちょうど（6行）の出力をしただけで最終行の改行が先頭行を押し出してしまい、
+ * 「まだ次の文字を1つも書いていないのに1行消える」という利用者から見て
+ * 明らかにおかしい挙動になっていた
+ * （`10 FOR I=1 TO 5`/`20 PRINT I`/`30 NEXT I`/`40 PRINT "OK"` が
+ * `1 2 3 4 5 OK` の6行ちょうどのはずが `2 3 4 5 OK` になる）。
+ * 端末や同世代ポケコンBASICで広く見られる「遅延スクロール」（最下行の改行時点
+ * ではまだスクロールせず、次に文字を書く／カーソルを要する出力が起きた時点で
+ * 初めてスクロールする）を採用すれば、画面ちょうどの出力は最後まで見える。
+ * `locate()`/`cls()` でカーソルが移動した場合は保留を解除する（移動後に
+ * 遅れてスクロールが発火すると別のバグになるため）。
+ *
+ * 参照: docs/design/phase1_architecture.md「画面モデル」節
+ */
+export const SCROLL_DEFERRED_UNTIL_NEXT_WRITE = true;

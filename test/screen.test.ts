@@ -70,21 +70,70 @@ describe('screen: putChar', () => {
   });
 });
 
-describe('screen: テキスト出力とスクロール', () => {
-  it('最下行での改行は8ドット分の上スクロールを起こす（元の最上行は失われる）', () => {
+describe('screen: テキスト出力とスクロール（遅延スクロール、SCROLL_DEFERRED_UNTIL_NEXT_WRITE）', () => {
+  it('最下行での改行の直後は、まだスクロールしていない（保留のみ）', () => {
     const screen = new Screen();
     screen.putChar(0, 0, 0x41); // 'A' at row0
     screen.putChar(0, 1, 0x42); // 'B' at row1
 
     screen.locate(0, 5); // 最下行
-    screen.writeText('\n'); // 最下行での改行 → スクロール
+    screen.writeText('\n'); // 最下行での改行 → この時点ではまだスクロールしない
+
+    // row0 の 'A' はまだそのまま残っている（押し出されていない）。
+    expect(screen.dumpAscii(0, 0, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x41));
+    // row1 の 'B' もまだ元の位置のまま。
+    expect(screen.dumpAscii(0, CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x42));
+  });
+
+  it('画面行数ちょうど(6行)の出力後は、先頭行が残っている（再現ケース）', () => {
+    // main.ts の DEMO_PROGRAM 相当：6行ちょうどの出力で先頭行が消えてはいけない。
+    const screen = new Screen();
+    screen.writeText('1\n2\n3\n4\n5\nOK');
+
+    // 先頭行(row0)の '1' が押し出されずに残っている。
+    expect(screen.dumpAscii(0, 0, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x31));
+    // 最終行(row5)には 'OK' の 'O' が書かれている。
+    expect(screen.dumpAscii(0, 5 * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x4f));
+  });
+
+  it('7行目を書き始めた時点で初めてスクロールする', () => {
+    const screen = new Screen();
+    screen.putChar(0, 0, 0x41); // 'A' at row0
+    screen.putChar(0, 1, 0x42); // 'B' at row1
+
+    screen.locate(0, 5); // 最下行
+    screen.writeText('\n'); // 保留
+    screen.writeText('C'); // 7行目にあたる最初の1文字 → ここで初めてスクロール
 
     // row1 にあった 'B' が row0 の位置(y=0)へ詰まっている。
     expect(screen.dumpAscii(0, 0, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x42));
-    // 新しい最下行(y=40)はクリアされている。
-    expect(screen.dumpAscii(0, 5 * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)).toBe(
-      Array.from({ length: CELL_HEIGHT }, () => '.'.repeat(CELL_WIDTH)).join('\n'),
-    );
+    // 新しい最下行(row5)に 'C' が書かれている。
+    expect(screen.dumpAscii(0, 5 * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x43));
+  });
+
+  it('最下行で改行した後にlocate()でカーソルを動かすと、スクロールは起きない', () => {
+    const screen = new Screen();
+    screen.putChar(0, 0, 0x41); // 'A' at row0
+
+    screen.locate(0, 5); // 最下行
+    screen.writeText('\n'); // 保留
+    screen.locate(0, 2); // カーソル移動 → 保留は解除される
+    screen.writeText('Z'); // ここではスクロールしないはず
+
+    // row0 の 'A' はそのまま残っている。
+    expect(screen.dumpAscii(0, 0, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x41));
+    // 'Z' は移動先(row2)に書かれている。
+    expect(screen.dumpAscii(0, 2 * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x5a));
+  });
+
+  it('長い出力で複数回スクロールしても正しく流れる（既存動作の回帰確認）', () => {
+    const screen = new Screen();
+    // 8行ぶん出力（6行の画面に対して2回スクロールが起きるはず）。
+    screen.writeText('1\n2\n3\n4\n5\n6\n7\n8');
+
+    // '8'まで書いた時点で先頭行は '3'（1,2は押し出され済み）になっているはず。
+    expect(screen.dumpAscii(0, 0, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x33));
+    expect(screen.dumpAscii(0, 5 * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT)).toBe(glyphCellDump(0x38));
   });
 
   it('writeText は24桁を超えると自動折り返しする', () => {
