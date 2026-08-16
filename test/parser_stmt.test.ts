@@ -78,7 +78,7 @@ describe('IF の2形態', () => {
   it('1行形式で THEN の後が文の場合もパースできる', () => {
     const [stmt] = parseLine('IF A=1 THEN PRINT A') as [IfLineStmt];
     expect(stmt.kind).toBe('IfLineStmt');
-    expect((stmt.thenClause as PrintStmt).kind).toBe('PrintStmt');
+    expect((stmt.thenClause as Stmt[])[0].kind).toBe('PrintStmt');
   });
 
   it('ブロック形式: THEN の直後が行末なら IfStmt（ヘッダのみ）', () => {
@@ -89,6 +89,43 @@ describe('IF の2形態', () => {
   it('ELSE / ENDIF は独立したマーカー文になる（ブロックを畳まない）', () => {
     expect(parseLine('ELSE')[0]?.kind).toBe('ElseStmt');
     expect(parseLine('ENDIF')[0]?.kind).toBe('EndIfStmt');
+  });
+
+  it('THEN 節が `:` 区切りの複文を取れる（ELSE で終わる）', () => {
+    const [stmt] = parseLine('IF A=1 THEN B=1:C=2 ELSE D=3') as [IfLineStmt];
+    const thenStmts = stmt.thenClause as Stmt[];
+    expect(thenStmts).toHaveLength(2);
+    expect(thenStmts[0].kind).toBe('LetStmt');
+    expect(thenStmts[1].kind).toBe('LetStmt');
+    expect((stmt.elseClause as Stmt[])[0].kind).toBe('LetStmt');
+  });
+
+  it('ELSE 節も `:` 区切りの複文を取れる（行末で終わる）', () => {
+    const [stmt] = parseLine('IF A=1 THEN B=1 ELSE C=2:D=3') as [IfLineStmt];
+    const elseStmts = stmt.elseClause as Stmt[];
+    expect(elseStmts).toHaveLength(2);
+    expect(elseStmts[0].kind).toBe('LetStmt');
+    expect(elseStmts[1].kind).toBe('LetStmt');
+  });
+
+  it('節の先頭が行番号だけなら残りが複文でも暗黙 GOTO（飛び先）として扱う', () => {
+    const [stmt] = parseLine('IF A=1 THEN 100 ELSE B=1:C=2') as [IfLineStmt];
+    expect(stmt.thenClause).toMatchObject({ kind: 'LineNumberTarget', value: 100 });
+    const elseStmts = stmt.elseClause as Stmt[];
+    expect(elseStmts).toHaveLength(2);
+  });
+
+  it('1行に複数の ELSE が現れても直近の未結合 IF に結合する（dangling else）', () => {
+    // 外側 IF の THEN 節が「内側 IF 文」1つだけを含み、内側 IF が自分の
+    // ELSE（Y=2）を貪欲に取ったあと、外側の ELSE（Z=3）は外側 IF に残る。
+    const [stmt] = parseLine('IF A=1 THEN IF B=1 THEN X=1 ELSE Y=2 ELSE Z=3') as [IfLineStmt];
+    const outerThen = stmt.thenClause as Stmt[];
+    expect(outerThen).toHaveLength(1);
+    const inner = outerThen[0] as IfLineStmt;
+    expect(inner.kind).toBe('IfLineStmt');
+    expect(((inner.thenClause as Stmt[])[0] as any).kind).toBe('LetStmt');
+    expect(((inner.elseClause as Stmt[])[0] as any).assignments[0].target.name).toBe('Y');
+    expect(((stmt.elseClause as Stmt[])[0] as any).assignments[0].target.name).toBe('Z');
   });
 });
 
@@ -111,8 +148,8 @@ describe('IF: THEN 省略（不確定仕様 IMPLICIT_THEN）', () => {
   it('THEN を省略して文を続けられる（ELSE も取れる）', () => {
     const [stmt] = parseLine('IF A=1 PRINT A ELSE PRINT B') as [IfLineStmt];
     expect(stmt.kind).toBe('IfLineStmt');
-    expect((stmt.thenClause as PrintStmt).kind).toBe('PrintStmt');
-    expect((stmt.elseClause as PrintStmt).kind).toBe('PrintStmt');
+    expect((stmt.thenClause as Stmt[])[0].kind).toBe('PrintStmt');
+    expect((stmt.elseClause as Stmt[])[0].kind).toBe('PrintStmt');
   });
 
   it('THEN 付きの従来構文は非退行で動く', () => {
@@ -124,18 +161,24 @@ describe('IF: THEN 省略（不確定仕様 IMPLICIT_THEN）', () => {
   it('IF が連鎖する（実在作品で常用される書き方）', () => {
     const [stmt] = parseLine('IF U=0 IF X>5 GOSUB 210') as [IfLineStmt];
     expect(stmt.kind).toBe('IfLineStmt');
-    const inner = stmt.thenClause as IfLineStmt;
+    const inner = (stmt.thenClause as Stmt[])[0] as IfLineStmt;
     expect(inner.kind).toBe('IfLineStmt');
-    expect((inner.thenClause as any).kind).toBe('GosubStmt');
+    expect((inner.thenClause as Stmt[])[0].kind).toBe('GosubStmt');
   });
 
-  it('IF が3連鎖してさらに複文が続く', () => {
+  it('IF が3連鎖してさらに複文が続く（複文は最も内側の THEN 節に属する）', () => {
     const [stmt] = parseLine('IF U=0 IF INKEY$="4" IF X>5 GOSUB 210:X=X-1') as [IfLineStmt];
     expect(stmt.kind).toBe('IfLineStmt');
-    const inner1 = stmt.thenClause as IfLineStmt;
-    const inner2 = inner1.thenClause as IfLineStmt;
-    expect(inner2.kind).toBe('IfLineStmt');
-    expect((inner2.thenClause as any).kind).toBe('GosubStmt');
+    const inner1 = (stmt.thenClause as Stmt[])[0] as IfLineStmt;
+    const inner2 = inner1.thenClause as Stmt[];
+    expect(inner2[0].kind).toBe('IfLineStmt');
+    const inner3 = inner2[0] as IfLineStmt;
+    // `:X=X-1` は最も内側の IF の THEN 節（複文）に属する。以前は THEN 節が
+    // 単一文しか取れず、この `X=X-1` が IF の外側（無条件）の文として
+    // トップレベルに漏れ出していた。
+    expect(inner3.thenClause as Stmt[]).toHaveLength(2);
+    expect((inner3.thenClause as Stmt[])[0].kind).toBe('GosubStmt');
+    expect((inner3.thenClause as Stmt[])[1].kind).toBe('LetStmt');
   });
 
   it('THEN も節も無い IF 単独は構文エラー', () => {

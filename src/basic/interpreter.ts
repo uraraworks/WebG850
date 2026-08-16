@@ -133,6 +133,18 @@ export class Interpreter {
   private breakRequested = false;
   /** INPUT/WAIT で同じ文へ再突入するときに行頭処理を1回だけスキップするためのフラグ。 */
   private suspendedAtSamePC = false;
+  /**
+   * IF の1行形式 THEN/ELSE 節（`:` 区切りの複文）を実行中の再開位置。
+   * 節内で INPUT/WAIT が中断すると coreLoop は同じ IfLineStmt を pc 据え置きで
+   * 呼び直す（`suspendedAtSamePC` 参照）ため、どの文まで実行済みかを
+   * IfLineStmt ノード自身をキーに憶えておく。ノードごとに独立させることで
+   * 入れ子 IF（THEN 節の中に別の IfLineStmt が現れる場合）でも互いを
+   * 上書きしない。
+   */
+  private readonly ifClauseResume = new WeakMap<
+    Extract<Stmt, { kind: 'IfLineStmt' }>,
+    { stmts: readonly Stmt[]; index: number }
+  >();
 
   angleMode: AngleMode = 'DEG';
   /** 実行中かどうか（`START`/`GOTO`しても行が尽きたら false になる）。 */
@@ -792,17 +804,46 @@ export class Interpreter {
   // ── IF（1行形式 / ブロック形式） ────────────────────────
 
   private executeIfLine(stmt: Extract<Stmt, { kind: 'IfLineStmt' }>): StmtResult {
-    const cond = asNumeric(this.evaluator.evaluate(stmt.condition));
-    const clause = cond !== 0 ? stmt.thenClause : stmt.elseClause;
-    if (clause === null) return 'advance';
-    if (clause.kind === 'LineNumberTarget' || clause.kind === 'LabelTarget') {
-      this.pc = this.resolveTarget(clause);
-      return 'jumped';
+    let resume = this.ifClauseResume.get(stmt);
+    if (!resume) {
+      const cond = asNumeric(this.evaluator.evaluate(stmt.condition));
+      const clause = cond !== 0 ? stmt.thenClause : stmt.elseClause;
+      if (clause === null) return 'advance';
+      if ('kind' in clause) {
+        this.pc = this.resolveTarget(clause);
+        return 'jumped';
+      }
+      resume = { stmts: clause, index: 0 };
+      this.ifClauseResume.set(stmt, resume);
     }
-    // THEN/ELSE 節が文そのものの場合：同じディスパッチャで実行する。
-    // this.pc は IF 文自身の位置のままなので、その文が「次へ進む」と
-    // 判断した場合の advance 先も IF 文の次（＝行の続き）になり、意図と一致する。
-    return this.executeStatement(clause);
+    // THEN/ELSE 節（`:` 区切りの複文）を順に実行する。this.pc は IF 文自身の
+    // 位置のままなので、全文を実行し終えて 'advance' を返した場合の advance
+    // 先も IF 文の次（＝行の続き）になり、意図と一致する。
+    while (resume.index < resume.stmts.length) {
+      const sub = resume.stmts[resume.index];
+      const result = this.executeStatement(sub);
+      if (result === 'jumped') {
+        this.ifClauseResume.delete(stmt);
+        return 'jumped';
+      }
+      if (result === 'advance') {
+        // STOP/END は 'advance' を返しつつ this.running を false にする。
+        // 通常の複文なら次の文へ進むが、実行が止まった場合は残りの節の文を
+        // 実行せずここで打ち切る（coreLoop 先頭の running チェックに委ねる）。
+        if (!this.running) {
+          this.ifClauseResume.delete(stmt);
+          return 'advance';
+        }
+        resume.index++;
+        continue;
+      }
+      // INPUT/WAIT による中断：resume を残したまま同じ結果を返す。次回
+      // coreLoop がこの文（stmt）を pc 据え置きで呼び直したとき、
+      // ifClauseResume から続きの index を復元して再開する。
+      return result;
+    }
+    this.ifClauseResume.delete(stmt);
+    return 'advance';
   }
 
   private executeIfBlock(stmt: Extract<Stmt, { kind: 'IfStmt' }>): StmtResult {
@@ -1266,10 +1307,10 @@ export class Interpreter {
   }
 
   private unparseClause(clause: IfClause): string {
-    if (clause.kind === 'LineNumberTarget' || clause.kind === 'LabelTarget') {
+    if ('kind' in clause) {
       return this.unparseJump(clause);
     }
-    return this.unparseStmt(clause);
+    return clause.map((s) => this.unparseStmt(s)).join(':');
   }
 
   private static readonly WORD_BINARY_OPS = new Set(['MOD', 'AND', 'OR', 'XOR']);

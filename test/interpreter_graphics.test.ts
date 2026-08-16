@@ -405,6 +405,40 @@ describe('INPUT', () => {
     expect(interpreter.variables.getScalar('A')).toEqual(numeric(41));
     expect(interpreter.variables.getScalar('B')).toEqual(numeric(42));
   });
+
+  it('IF の THEN 節（複文）の途中で INPUT が中断しても、再開後は続きの文から正しく実行される', () => {
+    // THEN 節: C=1 → INPUT A → C=C+10 の3文。INPUT で中断・再開したとき、
+    // 中断前に実行済みの C=1 をやり直したり（二重代入）、条件を再評価したり
+    // せず、INPUT の次の文からちょうど1回だけ続きが実行されることを確認する。
+    const program = parseProgram('10 X=1\n20 IF X=1 THEN C=1:INPUT A:C=C+10 ELSE C=999');
+    const machine = new Machine(1);
+    const interpreter = new Interpreter(program, machine, {});
+    const gen = interpreter.run();
+
+    let res = gen.next();
+    let guard = 0;
+    while (!res.done && res.value.kind !== 'input') {
+      res = gen.next();
+      guard++;
+      if (guard > 1000) throw new Error('INPUT待ちに到達しませんでした');
+    }
+    expect(res.done).toBe(false);
+    // 中断時点で THEN 節の1文目（C=1）は既に実行済みのはず。
+    expect(interpreter.variables.getScalar('C')).toEqual(numeric(1));
+
+    typeLineAndEnter(machine, '5');
+
+    guard = 0;
+    res = gen.next();
+    while (!res.done) {
+      res = gen.next();
+      guard++;
+      if (guard > 1000) throw new Error('INPUT再開後に終了しませんでした');
+    }
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(5));
+    // C=1 が再実行（二重代入）されず、C=C+10 が1回だけ効いて 11 になっていること。
+    expect(interpreter.variables.getScalar('C')).toEqual(numeric(11));
+  });
 });
 
 describe('LIST', () => {

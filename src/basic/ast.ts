@@ -224,8 +224,12 @@ export interface InputStmt extends NodeBase {
   readonly items: readonly InputItem[];
 }
 
-/** `IF` の1行形式の THEN/ELSE 節：飛び先か、単一の文のどちらか。 */
-export type IfClause = JumpTarget | Stmt;
+/**
+ * `IF` の1行形式の THEN/ELSE 節：飛び先か、`:` 区切りの文リストのどちらか。
+ * 節が飛び先（行番号のみ／`*ラベル`のみ）の場合は暗黙 GOTO として扱う
+ * （実測: 実在作品31本、ELSE の出現131箇所・25作品。ELSE節が複文の例が多数）。
+ */
+export type IfClause = JumpTarget | readonly Stmt[];
 
 /** `IF <条件> THEN <飛び先|文> [ELSE <飛び先|文>]`（1行形式、自己完結）。 */
 export interface IfLineStmt extends NodeBase {

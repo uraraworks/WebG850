@@ -192,6 +192,72 @@ describe('IF', () => {
     expect(f.variables.getScalar('B')).toEqual(numeric(200));
   });
 
+  it('1行形式・THEN 節が複文（条件不成立なら全文が実行されない）', () => {
+    const { interpreter } = run('10 A=2\n20 IF A=1 THEN B=1:C=1 ELSE D=1');
+    expect(interpreter.variables.getScalar('B').value).toBe(0);
+    expect(interpreter.variables.getScalar('C').value).toBe(0);
+    expect(interpreter.variables.getScalar('D')).toEqual(numeric(1));
+  });
+
+  it('1行形式・THEN 節が複文（条件成立なら全文が実行される）', () => {
+    const { interpreter } = run('10 A=1\n20 IF A=1 THEN B=1:C=2 ELSE D=1');
+    expect(interpreter.variables.getScalar('B')).toEqual(numeric(1));
+    expect(interpreter.variables.getScalar('C')).toEqual(numeric(2));
+    expect(interpreter.variables.getScalar('D').value).toBe(0);
+  });
+
+  it('1行形式・ELSE 節が複文（条件成立なら ELSE 節の全文が実行されない）', () => {
+    const { interpreter } = run('10 A=1\n20 IF A=1 THEN B=1 ELSE C=1:D=1');
+    expect(interpreter.variables.getScalar('B')).toEqual(numeric(1));
+    expect(interpreter.variables.getScalar('C').value).toBe(0);
+    expect(interpreter.variables.getScalar('D').value).toBe(0);
+  });
+
+  it('1行形式・ELSE 節が複文（条件不成立なら ELSE 節の全文が実行される）', () => {
+    const { interpreter } = run('10 A=2\n20 IF A=1 THEN B=1 ELSE C=1:D=1');
+    expect(interpreter.variables.getScalar('B').value).toBe(0);
+    expect(interpreter.variables.getScalar('C')).toEqual(numeric(1));
+    expect(interpreter.variables.getScalar('D')).toEqual(numeric(1));
+  });
+
+  it('1行形式・THEN 省略でも複文が両方取れる', () => {
+    const { interpreter: t } = run('10 A=1\n20 IF A=1 B=1:C=2 ELSE D=1:E=2');
+    expect(t.variables.getScalar('B')).toEqual(numeric(1));
+    expect(t.variables.getScalar('C')).toEqual(numeric(2));
+    expect(t.variables.getScalar('D').value).toBe(0);
+    expect(t.variables.getScalar('E').value).toBe(0);
+
+    const { interpreter: f } = run('10 A=2\n20 IF A=1 B=1:C=2 ELSE D=1:E=2');
+    expect(f.variables.getScalar('B').value).toBe(0);
+    expect(f.variables.getScalar('C').value).toBe(0);
+    expect(f.variables.getScalar('D')).toEqual(numeric(1));
+    expect(f.variables.getScalar('E')).toEqual(numeric(2));
+  });
+
+  it('節の先頭が行番号だけなら暗黙 GOTO（複文の ELSE と共存できる）', () => {
+    const { interpreter } = run('10 A=1\n20 IF A=1 THEN 40 ELSE B=1:C=2\n30 D=99\n40 D=D+1');
+    // THEN 節が行番号のみ→暗黙 GOTO で 40 行へ飛ぶ。30 行は実行されない。
+    expect(interpreter.variables.getScalar('D')).toEqual(numeric(1));
+    expect(interpreter.variables.getScalar('B').value).toBe(0);
+    expect(interpreter.variables.getScalar('C').value).toBe(0);
+  });
+
+  it('1行に複数の ELSE が現れても直近の未結合 IF に結合する（dangling else）', () => {
+    // 外側 A=1（成立）・内側 B=2（不成立）→ 内側の ELSE（Y=2）が実行され、
+    // 外側の ELSE（Z=3）は実行されない。
+    const { interpreter } = run('10 A=1\n20 B=1\n30 IF A=1 THEN IF B=2 THEN X=1 ELSE Y=2 ELSE Z=3');
+    expect(interpreter.variables.getScalar('X').value).toBe(0);
+    expect(interpreter.variables.getScalar('Y')).toEqual(numeric(2));
+    expect(interpreter.variables.getScalar('Z').value).toBe(0);
+  });
+
+  it('既存の単文 IF は非退行で動く（THEN 節・ELSE 節とも単文のまま）', () => {
+    const { interpreter: t } = run('10 A=1\n20 IF A=1 THEN B=100 ELSE B=200');
+    expect(t.variables.getScalar('B')).toEqual(numeric(100));
+    const { interpreter: f } = run('10 A=2\n20 IF A=1 THEN B=100 ELSE B=200');
+    expect(f.variables.getScalar('B')).toEqual(numeric(200));
+  });
+
   it('ブロック形式（IF THEN ... ELSE ... ENDIF）', () => {
     const src = `
 10 A=2

@@ -667,12 +667,22 @@ function parseInputStmt(cursor: Cursor): InputStmt {
 }
 
 /**
- * `IF` の THEN/ELSE 節1つ分：`<行番号>` / `*ラベル` / `<文>`。
+ * `IF` の THEN/ELSE 節1つ分：`<行番号>` / `*ラベル` / `<文>[:<文>...]`。
  * 【判断】 ELSE 節に `<文>` を許すかは資料間で食い違う
  * （yaml の format は `<行番号>|*ラベル` のみ、phase1_grammar.md 本文は
  * `<行番号>|*ラベル|<文>` と明記）。今回は依頼の最重要資料である
  * phase1_grammar.md を優先し、ELSE 節でも文を許容する（THEN 節と同じ
  * parseIfClause を共用）。
+ *
+ * 節が飛び先（行番号のみ／`*ラベル`のみ）でない場合は `:` 区切りの文リスト
+ * として読む（実在作品31本の実測: ELSE 節が複文の例が多数）。THEN 節は
+ * `ELSE` キーワードまたは行末で終わり、ELSE 節は行末で終わる。ELSE の直前に
+ * `:` が来る書き方（`...:ELSE ...`）も許容する。
+ *
+ * 節の中に THEN 省略の入れ子 IF が現れた場合、その IF 自身が
+ * `cursor.checkKeyword('ELSE')` で直後の ELSE を再帰的に食べる
+ * （parseIfStmt 参照）ため、1行に複数の ELSE が現れても「直近の
+ * 未結合 IF に結合する」（dangling else の最近接規則）が自然に成立する。
  */
 function parseIfClause(cursor: Cursor): IfClause {
   const tok = cursor.peek();
@@ -682,7 +692,19 @@ function parseIfClause(cursor: Cursor): IfClause {
   if (tok !== undefined && tok.type === 'operator' && tok.text === '*') {
     return parseTarget(cursor);
   }
-  return parseStatement(cursor);
+  const statements: Stmt[] = [];
+  for (;;) {
+    statements.push(parseStatement(cursor));
+    if (cursor.checkType('colon')) {
+      cursor.next();
+      if (cursor.atEnd() || cursor.checkKeyword('ELSE')) {
+        break;
+      }
+      continue;
+    }
+    break;
+  }
+  return statements;
 }
 
 /**
