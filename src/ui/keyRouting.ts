@@ -26,3 +26,31 @@ export function isFormControlTarget(target: EventTarget | null): boolean {
   const tagName = (target as { tagName?: unknown }).tagName;
   return typeof tagName === 'string' && FORM_TAG_NAMES.has(tagName.toUpperCase());
 }
+
+/** `dispatchKeydown` が要求する最小限の `Machine` インタフェース。 */
+export interface KeydownTargetMachine {
+  readonly keyboard: { handleKeyDown(e: KeyboardEvent): void };
+}
+
+/** `dispatchKeydown` が要求する最小限の `DirectMode` インタフェース。 */
+export interface KeydownTargetDirectMode {
+  isRunning(): boolean;
+  handleKeyDown(e: KeyboardEvent): void;
+}
+
+/**
+ * `keydown` イベント1つを `machine.keyboard`（常時）と、実行中でなければ
+ * `DirectMode` の両方へ配る。`ui/main.ts` の `window` `keydown` リスナー本体と、
+ * 仮想キーボード（`ui/virtualKeyboard.ts`）の両方が同じ配線をたどる必要があるため
+ * ここへ1本化した（別々に書くと「物理キーと仮想キーで挙動が食い違う」余地ができる）。
+ */
+export function dispatchKeydown(
+  machine: KeydownTargetMachine,
+  directMode: KeydownTargetDirectMode,
+  e: KeyboardEvent,
+): void {
+  machine.keyboard.handleKeyDown(e);
+  if (!directMode.isRunning()) {
+    directMode.handleKeyDown(e);
+  }
+}

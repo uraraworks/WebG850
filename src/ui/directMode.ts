@@ -186,6 +186,30 @@ export class DirectMode {
     this.callbacks.render();
   }
 
+  /**
+   * 仮想キーボード（`ui/virtualKeyboard.ts`）の関数キー・記号キー用：
+   * 文字列をそのまま LCD へ打ち込む。`insertChar` と違い CAPS ロックの影響を
+   * 受けない固定表記で入れる。
+   *
+   * 【判断した点・理由】 `SIN(` 等の関数名ショートカットは BASIC の予約語
+   * トークンそのもの（`docs/spec/basic_commands.yaml` の各 `format` は大文字
+   * 表記）であり、利用者が CAPS を小文字側へ切り替えていても小文字化すると
+   * 構文エラーになりかねない。そのため常に呼び出し側が渡した表記のまま入れる
+   * （＝大文字のショートカット文字列を渡す使い方を想定）。
+   *
+   * `?UNSUPPORTED <名前>` の埋め込み（未実装の仮想キー用）にも流用する：
+   * 実行を止めるほどではない「押しても無反応にしない」記録としてラインへ
+   * そのまま挿入するだけに留め、`machine.reportUnimplemented` は呼び出し側で行う。
+   */
+  insertText(text: string): void {
+    if (this.isRunning()) return;
+    for (const ch of text) {
+      this.lineBuffer += ch;
+      this.machine.screen.writeText(ch);
+    }
+    this.callbacks.render();
+  }
+
   private backspace(): void {
     if (this.lineBuffer.length === 0) return;
     this.lineBuffer = this.lineBuffer.slice(0, -1);

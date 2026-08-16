@@ -15,7 +15,8 @@ import { Machine } from '../machine/machine.ts';
 import type { Screen } from '../machine/screen.ts';
 import { attachCanvas } from './canvas.ts';
 import { DirectMode } from './directMode.ts';
-import { isFormControlTarget } from './keyRouting.ts';
+import { dispatchKeydown, isFormControlTarget } from './keyRouting.ts';
+import { attachVirtualKeyboard } from './virtualKeyboard.ts';
 
 const FIRST_ASCII = 0x20;
 const LAST_ASCII = 0x7e;
@@ -105,6 +106,11 @@ function main(): void {
   if (panelToggleButton === null || editorPanel === null || loadProgramButton === null) {
     throw new Error('入力欄パネル（編集ボタン／パネル本体／取り込みボタン）が見つかりません');
   }
+  const keyboardToggleButton = document.querySelector<HTMLButtonElement>('#btn-panel-keyboard');
+  const virtualKeyboardPanel = document.querySelector<HTMLDivElement>('#virtual-keyboard');
+  if (keyboardToggleButton === null || virtualKeyboardPanel === null) {
+    throw new Error('仮想キーボード（開閉ボタン／パネル本体）が見つかりません');
+  }
 
   const machine = new Machine();
   drawTestPattern(machine.screen);
@@ -129,13 +135,27 @@ function main(): void {
     updateModeIndicator();
   };
 
-  /** 画面右上相当のモード表示（DOM）を現在の `DirectMode` の状態に合わせる。 */
+  /**
+   * 画面右上相当のモード表示（DOM）を現在の `DirectMode`／`Keyboard` の状態に合わせる。
+   *
+   * 【判断した点・理由】 CAPS インジケータの点灯条件は資料からは確認できない
+   * （`docs/spec/operation_behavior.md` 未確定事項）。`machine/keyboard.ts` の
+   * コメントにある「小文字は CAPS キーの上に印字された『小文字』ラベルへ切り替えて出す」
+   * という実装済みの解釈に沿い、**小文字モード（`isCapsLockOn() === false`）のときに
+   * 点灯**とした（キートップに印字された機能名は、その機能が有効なときに点灯する
+   * という一般的なキーボードの慣行に合わせた）。既定（大文字）では消灯。
+   */
   function updateModeIndicator(): void {
     const mode = directMode?.getMode() ?? 'PRO';
+    const lowercaseActive = !machine.keyboard.isCapsLockOn();
     for (const el of Array.from(modeIndicator!.querySelectorAll<HTMLElement>('[data-indicator]'))) {
-      const isModeSlot = el.dataset.indicator === 'RUN' || el.dataset.indicator === 'PRO';
-      if (!isModeSlot) continue; // TEXT/CASL/STAT/CAPS/DEG は今回未実装のため常に消灯のまま。
-      el.classList.toggle('mode-indicator__item--active', el.dataset.indicator === mode);
+      const indicator = el.dataset.indicator;
+      if (indicator === 'RUN' || indicator === 'PRO') {
+        el.classList.toggle('mode-indicator__item--active', indicator === mode);
+      } else if (indicator === 'CAPS') {
+        el.classList.toggle('mode-indicator__item--active', lowercaseActive);
+      }
+      // TEXT/CASL/STAT/DEG は今回未実装のため常に消灯のまま。
     }
   }
 
@@ -158,6 +178,12 @@ function main(): void {
   directMode = new DirectMode(machine, { render: renderAll });
   updateModeIndicator(); // 初期状態（既定 PRO）を反映する。
 
+  attachVirtualKeyboard(virtualKeyboardPanel, {
+    machine,
+    directMode,
+    render: renderAll,
+  });
+
   // キー入力の行き先分離（依頼「3./4.」）：
   // - プログラム入力欄パネル（`#program-input` や中のボタン）にフォーカスがあるあいだの
   //   打鍵は、`isFormControlTarget` で弾いてエミュレータへ渡さない（従来どおり）。
@@ -171,10 +197,7 @@ function main(): void {
   //   ようになったため、実行中かどうかの判定は `directMode.isRunning()` の1本で足りる。
   window.addEventListener('keydown', (e) => {
     if (isFormControlTarget(e.target)) return;
-    machine.keyboard.handleKeyDown(e);
-    if (!directMode!.isRunning()) {
-      directMode!.handleKeyDown(e);
-    }
+    dispatchKeydown(machine, directMode!, e);
   });
   window.addEventListener('keyup', (e) => {
     if (isFormControlTarget(e.target)) return;
@@ -203,17 +226,31 @@ function main(): void {
     directMode!.toggleMode();
   });
 
-  // 入力欄パネルの開閉（同一作者の WebX68k の #btn-panel-keyboard と同じ流儀：
-  // aria-pressed で状態を持ち、`hidden` クラスで表示を切り替える）。
-  let panelOpen = false;
-  const setPanelOpen = (open: boolean): void => {
-    panelOpen = open;
+  // 入力欄パネル／仮想キーボードパネルの開閉（同一作者の WebX68k の
+  // #btn-panel-keyboard と同じ流儀：aria-pressed で状態を持ち、`hidden` クラスで
+  // 表示を切り替える）。両パネルは同時に開かない（依頼「既存のコピペ用パネルと
+  // 同時に開かないようにすること」）ため、一方を開くときはもう一方を必ず閉じる。
+  let editorPanelOpen = false;
+  let keyboardPanelOpen = false;
+  const setEditorPanelOpen = (open: boolean): void => {
+    editorPanelOpen = open;
     editorPanel.classList.toggle('hidden', !open);
     panelToggleButton.setAttribute('aria-pressed', String(open));
+    if (open) setKeyboardPanelOpen(false);
   };
-  setPanelOpen(panelOpen);
+  const setKeyboardPanelOpen = (open: boolean): void => {
+    keyboardPanelOpen = open;
+    virtualKeyboardPanel.classList.toggle('hidden', !open);
+    keyboardToggleButton.setAttribute('aria-pressed', String(open));
+    if (open) setEditorPanelOpen(false);
+  };
+  setEditorPanelOpen(editorPanelOpen);
+  setKeyboardPanelOpen(keyboardPanelOpen);
   panelToggleButton.addEventListener('click', () => {
-    setPanelOpen(!panelOpen);
+    setEditorPanelOpen(!editorPanelOpen);
+  });
+  keyboardToggleButton.addEventListener('click', () => {
+    setKeyboardPanelOpen(!keyboardPanelOpen);
   });
 
   // 「プログラムに取り込む」ボタン：入力欄の内容を `DirectMode` の `ProgramStore` へ

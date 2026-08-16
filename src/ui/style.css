@@ -107,18 +107,40 @@ body {
 }
 
 /*
+ * LCD とインジケータの並び。
+ *
+ * 実機は LCD パネルの右側にインジケータを縦並びで表示する（ユーザー提供の
+ * 実機写真で確認済み）。ただし横に並べると幅の狭いスマートフォン（375px 目安）で
+ * 破綻するため、既定（狭い画面）は縦並び＝インジケータを LCD の下へ回し、
+ * 幅に余裕がある画面（`--lcd-row-breakpoint` 以上）でだけ実機どおり右側の
+ * 縦並びへ切り替える。
+ */
+.lcd-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/*
  * モードインジケータ（RUN/PRO 等）。
  *
  * 実機は LCD 周辺の固定セグメント（ドットマトリクスの外）に表示するため、
  * ここでも #screen（144×48 のビットマップ）とは別の DOM 要素として置く。
  * `machine/screen.ts` の Screen（POINT が参照する実体）には一切触れていない
  * （依頼「ビットマップを侵食しないこと」）。
+ *
+ * 【判断した点・理由】 以前は文字色に `--footer-text`（操作バーの暗い背景向けの
+ * 薄い明色）を使っていたが、ここは白基調のページ本体（`.screen-area`）に
+ * 直接置かれるため、明色 on 明色でほぼ読めなくなっていた（実測 `rgb(43,43,40)`
+ * 相当まで沈んでいた）。ページ本体向けの濃色パレットに差し替える。
  */
 .mode-indicator {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem 0.7rem;
+  gap: 0.4rem 0.7rem;
   font-family: monospace;
   font-size: 0.7rem;
   font-weight: bold;
@@ -126,22 +148,55 @@ body {
 }
 
 .mode-indicator__item {
-  color: var(--footer-text);
-  opacity: 0.25;
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  color: #8f8d82;
 }
 
-/* 現在のモードだけ点灯させる（RUN/PRO のどちらか一方）。 */
+/* 点灯/消灯を色だけでなく小さな丸（LED 風）でも示す（色弱・低コントラスト環境向けの保険）。 */
+.mode-indicator__item::before {
+  content: '';
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+/* 現在点灯している項目（RUN/PRO のどちらか一方、CAPS が小文字モードのとき）。 */
 .mode-indicator__item--active {
-  color: #6fcf7a;
+  color: #1f7a34;
+}
+
+.mode-indicator__item--active::before {
   opacity: 1;
 }
 
 /*
- * 未実装項目（TEXT/CASL/STAT/CAPS/DEG）。並べてはいるが「点灯しない」ことで
+ * 未実装項目（TEXT/CASL/STAT/DEG）。並べてはいるが「点灯しない」ことで
  * 未対応であることをそのまま見せる（消して隠さない。親 CLAUDE.md の方針）。
  */
 .mode-indicator__item--unimplemented {
-  opacity: 0.15;
+  opacity: 0.4;
+}
+
+/* 画面に余裕がある幅では、実機どおり LCD の右側へインジケータを縦並びで置く。 */
+@media (min-width: 480px) {
+  .lcd-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .mode-indicator {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
 }
 
 #screen {
@@ -175,13 +230,26 @@ body {
 
 .control-bar__buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   width: 100%;
   max-width: 480px;
 }
 
+/*
+ * 【判断した点・理由】 仮想キーボードの開閉ボタン（「キー」）を追加して
+ * ボタンが6個になったところ、幅の狭いスマートフォン（375px 目安）では
+ * 従来の `flex: 1 1 0`（幅0から均等に伸びる＝どこまでも縮む）のままだと
+ * 文字がはみ出て読めなくなる／押しづらくなるまで縮んでしまった
+ * （ページ全体の横スクロールは `overflow-x: hidden` で防げていても、
+ * ボタン自体が押しにくい状態になるのは同じく不可）。`flex-basis` に
+ * 最低限の幅を持たせたうえで `flex-wrap: wrap` を足し、収まらない分だけ
+ * 自然に2段目へ折り返す形にした。
+ */
 .control-bar__button {
-  flex: 1 1 0;
+  /* 30%＝1行3個で揃う比率（`%` 指定なので、`.control-bar__buttons` の
+     `max-width: 480px` に収まる画面でも狭いスマートフォンでも同じ3列で揃う）。 */
+  flex: 1 1 30%;
   padding: 0.6rem 0.5rem;
   border: 1px solid var(--footer-btn-border);
   border-radius: 4px;
@@ -273,6 +341,63 @@ body {
   font-size: 16px;
   line-height: 1.5;
   resize: vertical;
+}
+
+/*
+ * 仮想キーボード。既定では `.hidden` で隠す（コピペ用パネルと同時に開かない。
+ * `ui/main.ts` の排他制御を参照）。`display:none` で隠すと中のボタンがフォーカスを
+ * 失う点も含めてコピペ用パネルと同じ扱いにしている。
+ */
+.virtual-keyboard {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.virtual-keyboard.hidden {
+  display: none;
+}
+
+.virtual-keyboard__row {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.virtual-keyboard__key {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.4rem 0.1rem;
+  border: 1px solid var(--footer-btn-border);
+  border-radius: 4px;
+  background: var(--footer-btn-bg);
+  color: var(--footer-text);
+  font-size: 0.72rem;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  /* 幅の狭いスマートフォンでもラベルが1行に収まるよう省略する。 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 押しやすい高さの最小目安（操作バーの他ボタンより小さめだが、指で押せる範囲）。 */
+  min-height: 2.1rem;
+}
+
+.virtual-keyboard__key:hover {
+  background: var(--footer-btn-bg-hover);
+}
+
+.virtual-keyboard__key:active {
+  background: var(--footer-btn-border);
+}
+
+/* 未実装キー（押すと ?UNSUPPORTED を打ち込むだけのキー）。「押しても無反応」に
+   見えないよう、他のキーと同じ見た目のまま点線の縁取りだけで区別する
+   （消す・隠すと「未実装は無言で隠さない」方針に反するため、あくまで薄い区別のみ）。 */
+.virtual-keyboard__key--unsupported {
+  border-style: dashed;
 }
 
 /* フッター */
