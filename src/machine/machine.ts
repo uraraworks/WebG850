@@ -10,6 +10,7 @@
 
 import { LinearCongruentialGenerator, seedFromCurrentTime } from '../basic/uncertain.js';
 import { Keyboard } from './keyboard.ts';
+import { type ByteStorage, MemoryBank } from './memory.ts';
 import { Screen } from './screen.ts';
 import { Sound, type AudioContextLike } from './sound.ts';
 
@@ -57,6 +58,13 @@ export class Machine {
   /** `attachAudio` で `AudioContext` を接続するまでは無音（`NullSound`）。 */
   sound: SoundInterface = new NullSound();
 
+  /**
+   * `PEEK`/`POKE` が読み書きするバイト配列（`memory.ts` 参照。実機メモリマップは
+   * 再現しない）。既定は揮発性。ブラウザでの永続化（localStorage）は
+   * `attachMemoryStorage` で後から接続する（`attachAudio` と同じ設計）。
+   */
+  readonly memory = new MemoryBank();
+
   private rng: LinearCongruentialGenerator;
 
   /** 未実装・部分未対応の命令名 → 踏んだ回数。 */
@@ -73,6 +81,15 @@ export class Machine {
    */
   attachAudio(ctx: AudioContextLike): void {
     this.sound = new Sound(ctx);
+  }
+
+  /**
+   * `PEEK`/`POKE` の永続化ストレージを接続する（`src/ui/` から localStorage
+   * バックエンドを差し込む想定。既定の揮発性実装のまま使ってもよい）。
+   * インタプリタ本体はこのメソッドを呼ばない（localStorage に直接依存しない設計）。
+   */
+  attachMemoryStorage(storage: ByteStorage): void {
+    this.memory.attachStorage(storage);
   }
 
   /**

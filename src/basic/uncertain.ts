@@ -35,7 +35,12 @@ export type UncertainId =
   | 'INITIAL_BASIC_MODE'
   | 'IMPLICIT_THEN'
   | 'UNPARENTHESIZED_CALL_BINDING'
-  | 'LINE_TRAILING_SLOTS_BY_CONTENT';
+  | 'LINE_TRAILING_SLOTS_BY_CONTENT'
+  | 'USING_OVERFLOW_STYLE'
+  | 'USING_NEGATIVE_SIGN_PLACEMENT'
+  | 'MEMORY_ADDRESS_WRAP'
+  | 'MEMORY_BYTE_TRUNCATION'
+  | 'MEMORY_NOT_ROM_BACKED';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -671,3 +676,97 @@ export const UNPARENTHESIZED_CALL_BINDING_NOTE =
  */
 export const LINE_TRAILING_SLOTS_BY_CONTENT_NOTE =
   'LINE末尾3スロット(モード/線種/矩形)は位置ではなくトークン内容で判定する。根拠は実在作品31本の計測(空スロットのカンマを省いてB/BFを直接書く用例)';
+
+// ─────────────────────────────────────────────────────────────
+// USING / PRINT USING の桁あふれ・符号の扱い
+// ─────────────────────────────────────────────────────────────
+//
+// 実装は src/basic/using.ts の formatUsingNumber。
+
+/**
+ * 【推測で決めた点・理由】 `docs/spec/basic_commands.yaml` の USING/PRINT は
+ * `#`=数値の桁、`.`=小数点区切りというプレースホルダの意味しか記載しておらず、
+ * 桁数を超える値を書式に当てはめたとき（桁あふれ）の表示形式はマニュアルに
+ * 記載が無い。
+ *
+ * ここでは同世代・同系統の MS-BASIC が広く採用する慣行（桁あふれ時は書式を
+ * 諦めて `%` を数値の前に付け、丸めのない完全な値をそのまま出す）を暫定採用する。
+ * 実機固有の挙動ではなく他機種からの類推であることを明示するため、値そのもの
+ * （`%` 付き）は変えず、根拠をここに集約した。差し替える場合は
+ * `using.ts` の `formatUsingNumber` の桁あふれ分岐のみを直せばよい。
+ *
+ * 参照: docs/spec/basic_commands.yaml の USING / PRINT エントリ
+ */
+export const USING_OVERFLOW_STYLE_NOTE =
+  '桁あふれ時は"%"を前置してまるめ無しの完全な値を出す(MS-BASIC系の慣行からの類推。実機未確認)';
+
+/**
+ * 【推測で決めた点・理由】 負数を書式へ当てはめる際、符号をどこに置くか
+ * （整数部の余白へ詰めるか、専用の桁を要求するか）もマニュアルに記載が無い。
+ * 整数部の余白（`#` のうち実際の桁より多く確保された分）があればそこへ
+ * `-` を1文字割り当て、余白が無ければ桁あふれと同じ扱い（`%` 付き）にする、
+ * という「桁あふれと同じ判定基準を符号にも適用する」単純な規則を採用した。
+ *
+ * 参照: docs/spec/basic_commands.yaml の USING / PRINT エントリ
+ */
+export const USING_NEGATIVE_SIGN_PLACEMENT_NOTE =
+  '負符号は整数部の余白へ詰める。余白が無ければ桁あふれと同じ%付き表示にする(実機未確認、桁あふれ規則からの単純な拡張)';
+
+// ─────────────────────────────────────────────────────────────
+// PEEK / POKE のメモリモデル
+// ─────────────────────────────────────────────────────────────
+//
+// 実装は src/machine/memory.ts の MemoryBank。
+//
+// 【重要な割り切り】 このエミュレータは ROM を持たないため、実機の
+// メモリマップ（BIOS/システムワークエリア等がどのアドレスに何を持つか）を
+// 再現することは原理的にできない（親 CLAUDE.md「ROM を使わない」）。
+// 実在作品での PEEK/POKE の使われ方を調べた結果、`&HF5`〜`&HFF`
+// （ゼロページ末尾の数バイト）を「電源を切っても消えない小さなメモリ」
+// としてハイスコア保存に使うだけの用例しか無かったため、実機のメモリ
+// マップとは無関係な、**単なる読み書き可能なバイト配列**として実装する。
+// 実機で意味を持つ番地（BIOSワークエリア等）を読んでも、このエミュレータでは
+// 単に「未書き込み＝0」が返るだけであり、実機の値を再現しない。この制限は
+// 隠さず、ここと docs/spec 側の両方に明記する
+// （親 CLAUDE.md「わかる範囲で動かし、不確定な仕様は…知りたい人が確認できる
+// 場所に出す」）。
+export const MEMORY_NOT_ROM_BACKED_NOTE =
+  'PEEK/POKEは実機メモリマップを再現しない単なるバイト配列。ROM非依存の方針により実アドレスの内容は再現不能で、未書き込みアドレスは常に0を返す';
+
+/**
+ * 【推測で決めた点・理由】 アドレスの有効範囲は `docs/spec/basic_commands.yaml`
+ * に `0 <= addr <= 65535` と明記されているが、範囲外を指定したときの挙動
+ * （エラーにするか、切り詰めるか）はマニュアルに記載が無い。
+ *
+ * ここでは「アドレスバスの幅を超えた分は無視される」という物理的なメモリの
+ * 素直な解釈（16ビット＝65536通りに折り返す）を採用し、`addr mod 65536`
+ * （負値は正規化）で折り返す。エラーで停止させるより「壊れない側」を選ぶ
+ * という本プロジェクトの一貫した方針（`FOR_CHECKS_BEFORE_BODY` 等と同じ考え方）
+ * にも合致する。
+ *
+ * 参照: docs/spec/basic_commands.yaml の PEEK/POKE エントリ
+ */
+export function wrapMemoryAddress(addr: number): number {
+  markUncertainUsed('MEMORY_ADDRESS_WRAP');
+  const wrapped = Math.trunc(addr) % 65536;
+  return wrapped < 0 ? wrapped + 65536 : wrapped;
+}
+
+/**
+ * 【推測で決めた点・理由】 POKE のバイト値の範囲は `0 <= b <= 255` と
+ * 明記されているが、範囲外を指定したときの挙動（クランプするか、折り返すか、
+ * エラーにするか）はマニュアルに記載が無い。
+ *
+ * ここでは「1バイトのレジスタは下位8ビットしか保持できない」という
+ * 物理的なメモリの素直な解釈（`value & 0xFF`）を採用する。クランプ
+ * （範囲外を0か255に丸める）よりも「上位ビットが捨てられるだけ」という
+ * 実際のハードウェアの挙動に近く、根拠が強い側を選んだ。
+ *
+ * 参照: docs/spec/basic_commands.yaml の POKE エントリ
+ */
+export function truncateMemoryByte(value: number): number {
+  markUncertainUsed('MEMORY_BYTE_TRUNCATION');
+  // `&` は32bit二の補数表現で計算されるため、0xff との AND は
+  // 符号に関係なく常に 0〜255 に収まる（-1 & 0xff === 255 等）。
+  return Math.trunc(value) & 0xff;
+}

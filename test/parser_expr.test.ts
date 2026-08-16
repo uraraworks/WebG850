@@ -124,11 +124,11 @@ describe('parseExpression: 一次式', () => {
     expect(expr.args[0].name).toBe('X');
   });
 
-  it('PEEK(0) は Phase 2 として Unsupported 扱いになる', () => {
+  it('PEEK(0) は FunctionCall になる（ROM非依存の単なるバイト配列としてphase1実装済み）', () => {
     const expr = parse('PEEK(0)') as any;
-    expect(expr.kind).toBe('UnsupportedExpr');
+    expect(expr.kind).toBe('FunctionCall');
     expect(expr.name).toBe('PEEK');
-    expect(expr.reason).toBe('phase2');
+    expect(expr.args).toHaveLength(1);
   });
 
   it('EOF(1) は Phase 3 として Unsupported 扱いになる', () => {

@@ -2089,13 +2089,18 @@ commands:
         notes: null
     returns: numeric
     errors: []
-    phase: 2
+    phase: 1
     status: documented
     ocr_suspect: false
     verified_by: manual_3rd_party
     verifiable_by_measurement: true
     source: manual_de p.228
-    notes: '関連: POKE, CALL'
+    notes: '関連: POKE, CALL。【実装方針】 実機のメモリマップ（BIOS/システムワークエリア等）は
+      ROM非依存の方針上再現できないため、本エミュレータでは実機の番地とは無関係な単なる
+      読み書き可能バイト配列として実装する（phase 2からの繰り上げ。CALL/OUT/INPはBIOS実体が
+      無いと成立しないためphase 2のまま）。実在作品31本の計測では&HF5〜&HFF（ゼロページ末尾）を
+      電源断でも消えない小メモリとしてハイスコア保存に使う用例のみが見つかった。未書き込みの
+      番地は常に0を返し、実機の値は再現しない。詳細はsrc/basic/uncertain.ts参照。'
   - name: PI
     aliases: []
     kind: function
@@ -2211,13 +2216,15 @@ commands:
     returns: none
     errors:
       - 書き込み先の空き容量が足りない場合ERRORコード
-    phase: 2
+    phase: 1
     status: documented
     ocr_suspect: false
     verified_by: manual_3rd_party
     verifiable_by_measurement: true
     source: manual_de p.230
-    notes: null
+    notes: '【実装方針】 PEEKと同じ理由（ROM非依存の方針）でphase 1へ繰り上げ、実機の
+      メモリマップとは無関係な単なるバイト配列として実装する。詳細はPEEKのnotesおよび
+      src/basic/uncertain.ts参照。'
   - name: POL
     aliases: []
     kind: function

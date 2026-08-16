@@ -209,6 +209,24 @@ export interface PrintStmt extends NodeBase {
   readonly trailingSep: ',' | ';' | null;
 }
 
+/**
+ * `USING [<書式文字列>]`（単独文）。以降の（インラインで書式指定の無い）
+ * `PRINT` に効く既定の書式を設定する。`format` が null なのは引数省略時
+ * （既定の書式へ戻す＝解除）。`PrintUsing`（PRINT内のUSING節）とは別ノード
+ * （docs/spec/basic_commands.yaml USING の notes: 単独文としても現れる）。
+ */
+export interface UsingStmt extends NodeBase {
+  readonly kind: 'UsingStmt';
+  readonly format: Expr | null;
+}
+
+/** `POKE <アドレス>,<バイト>[,<バイト>……]`。addr を起点に連続書き込みする。 */
+export interface PokeStmt extends NodeBase {
+  readonly kind: 'PokeStmt';
+  readonly address: Expr;
+  readonly bytes: readonly Expr[];
+}
+
 /** `INPUT` のメッセージ部分。`;` 付きなら `?` 表示を抑制する（quiet）。 */
 export interface InputPrompt extends NodeBase {
   readonly kind: 'InputPrompt';
@@ -710,7 +728,9 @@ export type Stmt =
   | DegreeStmt
   | RadianStmt
   | GradStmt
-  | PassStmt;
+  | PassStmt
+  | UsingStmt
+  | PokeStmt;
 
 /** 1行分（複文はセミコロンでなくコロン区切り、docs/design/phase1_grammar.md「行」節）。 */
 export interface ProgramLine {

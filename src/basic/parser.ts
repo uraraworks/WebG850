@@ -56,6 +56,7 @@ import type {
   PaintStmt,
   PassStmt,
   Point,
+  PokeStmt,
   PresetStmt,
   PrintItem,
   PrintSegment,
@@ -82,6 +83,7 @@ import type {
   UnsupportedExpr,
   UnsupportedStmt,
   UntilStmt,
+  UsingStmt,
   VariableRef,
   WaitStmt,
   WendStmt,
@@ -1210,6 +1212,30 @@ function parseBeepStmt(cursor: Cursor): BeepStmt {
   return { kind: 'BeepStmt', count, pitch, duration, pos: startTok.pos };
 }
 
+/** `POKE <アドレス>,<バイト>[,<バイト>……]`。バイトは1個以上必須。 */
+function parsePokeStmt(cursor: Cursor): PokeStmt {
+  const startTok = cursor.next(); // POKE
+  const address = parseExpression(cursor);
+  const bytes: Expr[] = [];
+  cursor.expectType('comma', 'POKE のバイト列');
+  bytes.push(parseExpression(cursor));
+  while (cursor.checkType('comma')) {
+    cursor.next();
+    bytes.push(parseExpression(cursor));
+  }
+  return { kind: 'PokeStmt', address, bytes, pos: startTok.pos };
+}
+
+/** `USING [<書式文字列>]`（単独文）。省略時は以降のPRINTの既定書式を解除する。 */
+function parseUsingStmt(cursor: Cursor): UsingStmt {
+  const startTok = cursor.next(); // USING
+  if (cursor.atEnd() || cursor.checkType('colon')) {
+    return { kind: 'UsingStmt', format: null, pos: startTok.pos };
+  }
+  const format = parseExpression(cursor);
+  return { kind: 'UsingStmt', format, pos: startTok.pos };
+}
+
 /** `WAIT [<数値>]`。 */
 function parseWaitStmt(cursor: Cursor): WaitStmt {
   const startTok = cursor.next(); // WAIT
@@ -1550,6 +1576,10 @@ export function parseStatement(cursor: Cursor): Stmt {
         return parseBeepStmt(cursor);
       case 'WAIT':
         return parseWaitStmt(cursor);
+      case 'POKE':
+        return parsePokeStmt(cursor);
+      case 'USING':
+        return parseUsingStmt(cursor);
       case 'RANDOMIZE':
         return parseRandomizeStmt(cursor);
       case 'LCOPY':

@@ -16,6 +16,7 @@ import type { Screen } from '../machine/screen.ts';
 import { attachCanvas } from './canvas.ts';
 import { DirectMode } from './directMode.ts';
 import { dispatchKeydown, isFormControlTarget } from './keyRouting.ts';
+import { LocalStorageByteStorage } from './memoryStorage.ts';
 import { attachVirtualKeyboard } from './virtualKeyboard.ts';
 
 const FIRST_ASCII = 0x20;
@@ -117,6 +118,13 @@ function main(): void {
   }
 
   const machine = new Machine();
+  // PEEK/POKE（ハイスコア保存用途）を localStorage へ永続化する。
+  // 利用不可の環境（プライベートブラウズ等で例外を投げる場合）でも起動を止めない。
+  try {
+    machine.attachMemoryStorage(new LocalStorageByteStorage());
+  } catch {
+    // 永続化なしで続行（既定の揮発性ストレージのまま）。
+  }
   drawTestPattern(machine.screen);
 
   // `directMode` は下で構築するが、canvas のカーソル描画コールバックは

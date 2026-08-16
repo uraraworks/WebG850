@@ -31,7 +31,7 @@ import { variableValueType } from '../src/basic/value.ts';
 import { Interpreter, type Suspend } from '../src/basic/interpreter.ts';
 import { Machine } from '../src/machine/machine.ts';
 import { getGlyph } from '../src/machine/font.ts';
-import { CELL_HEIGHT, CELL_WIDTH, TEXT_COLS, TEXT_ROWS } from '../src/machine/screen.ts';
+import { CELL_HEIGHT, CELL_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH, TEXT_COLS, TEXT_ROWS } from '../src/machine/screen.ts';
 
 // ─────────────────────────────────────────────────────────────
 // コーパスの読み込み
@@ -209,6 +209,25 @@ interface RuntimeResult {
   readonly status: RuntimeStatus;
   readonly detail: string;
   readonly steps: number;
+  /**
+   * 実行後のLCDに何かドットが点灯しているか（軽量判定。「パースは通るが
+   * 画面に何も出ない」作品を見つけるための副指標）。`machine` を作る前に
+   * 落ちた場合（PARSEエラー等）は false。
+   */
+  readonly hasDrawing: boolean;
+}
+
+/**
+ * LCD全面（144x48ドット）を走査し、1ドットでも点灯していれば true を返す。
+ * 判定は軽くてよい（依頼指示）ので、点灯を1個見つけた時点で打ち切る。
+ */
+function screenHasAnyDot(machine: Machine): boolean {
+  for (let y = 0; y < SCREEN_HEIGHT; y++) {
+    for (let x = 0; x < SCREEN_WIDTH; x++) {
+      if (machine.screen.point(x, y)) return true;
+    }
+  }
+  return false;
 }
 
 interface AssignTargetGroup {
@@ -339,12 +358,19 @@ function runProgram(source: string): RuntimeResult {
   try {
     program = parseProgram(source);
   } catch (e) {
-    return { status: 'ERROR', detail: `PARSE: ${e instanceof Error ? e.message : String(e)}`, steps: 0 };
+    return { status: 'ERROR', detail: `PARSE: ${e instanceof Error ? e.message : String(e)}`, steps: 0, hasDrawing: false };
   }
 
   const machine = new Machine(1);
   const interpreter = new Interpreter(program, machine, BUILTINS);
   const gen = interpreter.run();
+  // machine 生成後の全ての return はこれを経由し、hasDrawing を漏れなく含める。
+  const finish = (status: RuntimeStatus, detail: string, steps: number): RuntimeResult => ({
+    status,
+    detail,
+    steps,
+    hasDrawing: screenHasAnyDot(machine),
+  });
 
   const inputState: InputStubState = { pcKey: null, groupIndex: 0 };
   let steps = 0;
@@ -358,11 +384,11 @@ function runProgram(source: string): RuntimeResult {
       if (suspend.kind === 'yield') {
         steps++;
         if (steps > STEP_BUDGET) {
-          return { status: 'TIMEOUT', detail: `steps>${STEP_BUDGET}`, steps };
+          return finish('TIMEOUT', `steps>${STEP_BUDGET}`, steps);
         }
       }
       if (Date.now() > deadline) {
-        return { status: 'TIMEOUT', detail: `wall clock > ${WALL_CLOCK_BUDGET_MS}ms`, steps };
+        return finish('TIMEOUT', `wall clock > ${WALL_CLOCK_BUDGET_MS}ms`, steps);
       }
 
       if (suspend.kind === 'input') {
@@ -380,21 +406,21 @@ function runProgram(source: string): RuntimeResult {
     // BasicError/UnsupportedError は coreLoop 内部で捕捉されて画面表示に
     // 変換される設計（interpreter.ts 参照）なので、ここに到達する例外は
     // ハーネス側の呼び方の誤りかインタプリタ外の想定外エラー。
-    return { status: 'ERROR', detail: `EXCEPTION: ${e instanceof Error ? e.message : String(e)}`, steps };
+    return finish('ERROR', `EXCEPTION: ${e instanceof Error ? e.message : String(e)}`, steps);
   }
 
   const text = decodeScreenText(machine);
   const unsupportedMatch = text.match(/\?UNSUPPORTED (\S+)(?: IN (\d+))?/);
   if (unsupportedMatch) {
     const line = unsupportedMatch[2] ? ` IN ${unsupportedMatch[2]}` : '';
-    return { status: 'ERROR', detail: `UNSUPPORTED ${unsupportedMatch[1]}${line}`, steps };
+    return finish('ERROR', `UNSUPPORTED ${unsupportedMatch[1]}${line}`, steps);
   }
   const errorMatch = text.match(/\?ERROR (\d+)(?: IN (\d+))?/);
   if (errorMatch) {
     const line = errorMatch[2] ? ` IN ${errorMatch[2]}` : '';
-    return { status: 'ERROR', detail: `ERROR ${errorMatch[1]}${line}`, steps };
+    return finish('ERROR', `ERROR ${errorMatch[1]}${line}`, steps);
   }
-  return { status: 'RAN', detail: '', steps };
+  return finish('RAN', '', steps);
 }
 
 /**
@@ -428,9 +454,15 @@ function runProgramIsolated(entry: CorpusEntry): RuntimeResult {
         status: 'TIMEOUT',
         detail: `子プロセスがハング検出でタイムアウト強制終了(>${CHILD_TIMEOUT_MS}ms, signal=${err.signal ?? '?'})`,
         steps: -1,
+        hasDrawing: false,
       };
     }
-    return { status: 'ERROR', detail: `HARNESS(child): ${err instanceof Error ? err.message : String(err)}`, steps: -1 };
+    return {
+      status: 'ERROR',
+      detail: `HARNESS(child): ${err instanceof Error ? err.message : String(err)}`,
+      steps: -1,
+      hasDrawing: false,
+    };
   }
 }
 
@@ -474,7 +506,12 @@ function main(): void {
     try {
       runtimeResult = runProgramIsolated(entry);
     } catch (e) {
-      runtimeResult = { status: 'ERROR', detail: `HARNESS: ${e instanceof Error ? e.message : String(e)}`, steps: 0 };
+      runtimeResult = {
+        status: 'ERROR',
+        detail: `HARNESS: ${e instanceof Error ? e.message : String(e)}`,
+        steps: 0,
+        hasDrawing: false,
+      };
     }
     return { id: entry.id, staticResult, runtimeResult };
   });
@@ -500,6 +537,10 @@ function main(): void {
 
   const runtimeCounts = { RAN: 0, TIMEOUT: 0, ERROR: 0 } as Record<RuntimeStatus, number>;
   for (const r of results) runtimeCounts[r.runtimeResult.status]++;
+  const drawingCount = results.filter((r) => r.runtimeResult.hasDrawing).length;
+  // RAN（パースも実行も成功）したのに画面へ何も描かれなかった作品。
+  // 「パースは通るが画面に何も出ない」を見つけるための副指標。
+  const ranButBlank = results.filter((r) => r.runtimeResult.status === 'RAN' && !r.runtimeResult.hasDrawing);
 
   // ── JSON 出力 ──
   const jsonPath = join(outDir, 'corpus_result.json');
@@ -541,6 +582,13 @@ function main(): void {
   lines.push(`TIMEOUT: ${runtimeCounts.TIMEOUT}/${total}`);
   lines.push(`ERROR: ${runtimeCounts.ERROR}/${total}`);
   lines.push('');
+  lines.push('## 画面描画判定（副指標。LCD144x48に1ドットでも点灯していればdrawing=yes）');
+  lines.push(`drawing=yes: ${drawingCount}/${total}`);
+  lines.push(`RANなのに画面が空白（要調査）: ${ranButBlank.length}/${runtimeCounts.RAN}`);
+  for (const r of ranButBlank) {
+    lines.push(`    - ${r.id}`);
+  }
+  lines.push('');
   lines.push('## 未実装機能の使用作品数ランキング（全件）');
   if (unsupportedRanking.length === 0) {
     lines.push('（未実装の使用は検出されませんでした）');
@@ -567,10 +615,15 @@ function main(): void {
     }
   }
   lines.push('');
-  lines.push('## 実行到達度 詳細（RAN 以外）');
+  // 【判断】 以前は「RAN 以外」だけを列挙していたが、画面描画判定（drawing=）を
+  // 全作品ぶん確認できるよう、ステータスを問わず1作品1行で列挙する形に統合した
+  // （grep "^- <id>:" で1作品ぶんを取り出す既存の運用と両立する）。
+  lines.push('## 全作品 詳細（実行到達度 + 画面描画判定。1作品1行、grep "^- <id>:" で拾える）');
   for (const r of results) {
-    if (r.runtimeResult.status === 'RAN') continue;
-    lines.push(`- ${r.id}: ${r.runtimeResult.status} ${r.runtimeResult.detail} (steps=${r.runtimeResult.steps})`);
+    const drawing = r.runtimeResult.hasDrawing ? 'yes' : 'no';
+    lines.push(
+      `- ${r.id}: ${r.runtimeResult.status} drawing=${drawing} ${r.runtimeResult.detail} (steps=${r.runtimeResult.steps})`,
+    );
   }
 
   const txtPath = join(outDir, 'corpus_result.txt');

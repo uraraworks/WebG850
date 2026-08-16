@@ -420,7 +420,15 @@ describe('その他の文', () => {
   });
 
   it('phase2/3 と判明している命令は reason で区別される', () => {
-    expect(parseLine('POKE 1,2')[0]).toMatchObject({ kind: 'UnsupportedStmt', reason: 'phase2' });
+    // POKE は以前 phase2 の代表例だったが、ROM非依存の単なるバイト配列として
+    // phase1実装済みになった（PokeStmt を返す）ため、CALL に差し替えた。
+    expect(parseLine('CALL 1')[0]).toMatchObject({ kind: 'UnsupportedStmt', reason: 'phase2' });
     expect(parseLine('CLOAD')[0]).toMatchObject({ kind: 'UnsupportedStmt', reason: 'phase3' });
+  });
+
+  it('POKE はバイト列を伴う PokeStmt になる（ROM非依存の単なるバイト配列としてphase1実装済み）', () => {
+    const stmt = parseLine('POKE &HFE,1,2')[0] as any;
+    expect(stmt.kind).toBe('PokeStmt');
+    expect(stmt.bytes).toHaveLength(2);
   });
 });

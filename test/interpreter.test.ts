@@ -511,3 +511,83 @@ describe('ON GOTO / ON GOSUB', () => {
     expect(interpreter.variables.getScalar('A')).toEqual(numeric(42));
   });
 });
+
+describe('USING / PRINT USING', () => {
+  it('PRINT USING はその文の項目にだけ書式を適用する', () => {
+    const { machine } = run('10 PRINT USING "###.##";3.14159');
+    const cmp = new Machine();
+    cmp.screen.writeText('  3.14\n');
+    expect(machine.screen.dumpAscii(0, 0, 60, 8)).toBe(cmp.screen.dumpAscii(0, 0, 60, 8));
+  });
+
+  it('単独の USING は以降の PRINT（インライン指定の無いもの）に効き続ける', () => {
+    const { machine } = run('10 USING "####"\n20 PRINT 7\n30 PRINT 8');
+    const cmp = new Machine();
+    cmp.screen.writeText('   7\n   8\n');
+    expect(machine.screen.dumpAscii(0, 0, 60, 16)).toBe(cmp.screen.dumpAscii(0, 0, 60, 16));
+  });
+
+  it('引数無しの USING は既定書式を解除する', () => {
+    const { machine } = run('10 USING "####"\n20 USING\n30 PRINT 7');
+    const cmp = new Machine();
+    cmp.screen.writeText(' 7\n');
+    expect(machine.screen.dumpAscii(0, 0, 24, 8)).toBe(cmp.screen.dumpAscii(0, 0, 24, 8));
+  });
+
+  it('文字列項目は書式の影響を受けずそのまま出力される', () => {
+    const { machine } = run('10 PRINT USING "###";"HI";5');
+    const cmp = new Machine();
+    cmp.screen.writeText('HI  5\n');
+    expect(machine.screen.dumpAscii(0, 0, 42, 8)).toBe(cmp.screen.dumpAscii(0, 0, 42, 8));
+  });
+
+  it('未対応の書式文字（, ^ &）は無言で無視せず ?UNSUPPORTED を表示する', () => {
+    const { machine, interpreter } = run('10 PRINT USING "#,###";1000');
+    expect(interpreter.running).toBe(false);
+    const text = machine.screen.dumpAscii(0, 0, 144, 48);
+    const cmp = new Machine();
+    cmp.screen.writeText('\n?UNSUPPORTED USING(,) IN 10\n');
+    expect(text).toBe(cmp.screen.dumpAscii(0, 0, 144, 48));
+  });
+
+  it('整数部が桁あふれすると "%" 付きの完全な値になる', () => {
+    const { machine } = run('10 PRINT USING "##";12345');
+    const cmp = new Machine();
+    cmp.screen.writeText('%12345\n');
+    expect(machine.screen.dumpAscii(0, 0, 48, 8)).toBe(cmp.screen.dumpAscii(0, 0, 48, 8));
+  });
+});
+
+describe('PEEK / POKE', () => {
+  it('POKE→PEEK の往復ができる（括弧なし呼び出し）', () => {
+    const { interpreter } = run('10 POKE &HFE,123\n20 A=PEEK &HFE');
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(123));
+  });
+
+  it('括弧あり呼び出しでも動く', () => {
+    const { interpreter } = run('10 POKE &HF6,10\n20 A=PEEK(&HF6)');
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(10));
+  });
+
+  it('POKE は1文で複数バイトを連続アドレスへ書き込める（実在作品の用例: H=PEEK &HFE*256+PEEK &HFF 相当）', () => {
+    const src = '10 POKE &HFE,1,44\n20 H=PEEK &HFE*256+PEEK &HFF';
+    const { interpreter } = run(src);
+    expect(interpreter.variables.getScalar('H')).toEqual(numeric(1 * 256 + 44));
+  });
+
+  it('未書き込みのアドレスは0を返す（実機メモリマップは再現しない）', () => {
+    const { interpreter } = run('10 A=PEEK &HAB');
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(0));
+  });
+
+  it('バイト値は0〜255へ切り詰められる', () => {
+    const { interpreter } = run('10 POKE 0,300\n20 A=PEEK 0');
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(300 & 0xff));
+  });
+
+  it('式で書いたアドレス（括弧付き）でも動く（FOR I=0 TO 3: PEEK (&HF6+I*2) 相当）', () => {
+    const src = '10 POKE &HF6,5\n20 I=0\n30 A=PEEK (&HF6+I*2)';
+    const { interpreter } = run(src);
+    expect(interpreter.variables.getScalar('A')).toEqual(numeric(5));
+  });
+});

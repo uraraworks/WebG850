@@ -36,8 +36,10 @@ import {
   type UncertainId,
 } from './uncertain.js';
 import { formatNumber } from './number.js';
+import { formatUsingNumber } from './using.js';
 import {
   asNumeric,
+  asString,
   type BasicValue,
   isNumeric,
   numeric,
@@ -157,6 +159,12 @@ export class Interpreter {
     { stmts: readonly Stmt[]; index: number }
   >();
 
+  /**
+   * `USING`（単独文）で設定された、インラインの `PRINT USING` を伴わない
+   * 通常の `PRINT` にも効く既定の書式。`null` は既定書式なし（通常表示）。
+   */
+  private activeUsingFormat: string | null = null;
+
   angleMode: AngleMode = 'DEG';
   /** 実行中かどうか（`START`/`GOTO`しても行が尽きたら false になる）。 */
   running = false;
@@ -182,6 +190,17 @@ export class Interpreter {
           const x = Math.trunc(asNumeric(args[0]));
           const y = Math.trunc(asNumeric(args[1]));
           return numeric(this.machine.screen.point(x, y));
+        },
+      },
+      // PEEK も POINT と同じ理由（machine への依存）でここに足す。
+      // 実機のメモリマップは再現しない単なるバイト配列（machine/memory.ts、
+      // src/basic/uncertain.ts の MEMORY_NOT_ROM_BACKED_NOTE 参照）。
+      PEEK: {
+        minArgs: 1,
+        maxArgs: 1,
+        fn: (args) => {
+          const addr = Math.trunc(asNumeric(args[0]));
+          return numeric(this.machine.memory.peek(addr));
         },
       },
     };
@@ -257,6 +276,7 @@ export class Interpreter {
     // 完了する、といった壊れ方をする（WAIT の確認作業で発見）。
     this.inputState = null;
     this.waitDeadline = null;
+    this.activeUsingFormat = null;
   }
 
   /** `RUN` 相当。先頭から実行する。変数・スタック・DATAポインタを初期化する。 */
@@ -538,18 +558,24 @@ export class Interpreter {
   }
 
   private executePrint(stmt: Extract<Stmt, { kind: 'PrintStmt' }>): StmtResult {
+    // インラインの `PRINT USING "<format>"` はこの PRINT 文の残り項目にだけ効く
+    // （単独文の `USING` と違い、activeUsingFormat 自体は書き換えない）。
+    // 初期値は単独 `USING` で設定済みの既定書式（無ければ null＝通常表示）。
+    let currentFormat: string | null = this.activeUsingFormat;
     for (const seg of stmt.items) {
       if (seg.sep === ',') {
         this.printZoneTab();
       }
       if (seg.value.kind === 'PrintUsing') {
-        // 【判断】 USING の書式解釈は未対応（依頼スコープ外）。無言で無視せず記録した上で、
-        // 以降の項目は書式なしでそのまま出力を続ける。
-        this.machine.reportUnimplemented('PRINT USING');
+        currentFormat = asString(this.evaluator.evaluate(seg.value.format));
         continue;
       }
       const value = this.evaluator.evaluate(seg.value);
-      const text = isNumeric(value) ? formatNumber(value.value) : value.value;
+      const text = isNumeric(value)
+        ? currentFormat !== null
+          ? formatUsingNumber(currentFormat, value.value)
+          : formatNumber(value.value)
+        : value.value;
       this.machine.screen.writeText(text);
     }
     if (stmt.trailingSep === null) {
@@ -1552,6 +1578,10 @@ export class Interpreter {
         return stmt.value ? `WAIT ${this.unparseExpr(stmt.value)}` : 'WAIT';
       case 'RandomizeStmt':
         return 'RANDOMIZE';
+      case 'UsingStmt':
+        return stmt.format !== null ? `USING ${this.unparseExpr(stmt.format)}` : 'USING';
+      case 'PokeStmt':
+        return `POKE ${this.unparseExpr(stmt.address)},${stmt.bytes.map((b) => this.unparseExpr(b)).join(',')}`;
       case 'LcopyStmt':
         return `LCOPY ${this.unparseExpr(stmt.fromLine)},${this.unparseExpr(stmt.toLine)},${this.unparseExpr(stmt.destLine)}`;
       case 'RunStmt':
@@ -1722,6 +1752,16 @@ export class Interpreter {
       case 'RandomizeStmt':
         this.machine.randomize();
         return 'advance';
+
+      case 'UsingStmt':
+        this.activeUsingFormat = stmt.format === null ? null : asString(this.evaluator.evaluate(stmt.format));
+        return 'advance';
+      case 'PokeStmt': {
+        const addr = Math.trunc(asNumeric(this.evaluator.evaluate(stmt.address)));
+        const bytes = stmt.bytes.map((b) => Math.trunc(asNumeric(this.evaluator.evaluate(b))));
+        this.machine.memory.poke(addr, bytes);
+        return 'advance';
+      }
 
       case 'GcursorStmt':
         return this.executeGcursor(stmt);
