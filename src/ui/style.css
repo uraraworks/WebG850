@@ -114,12 +114,52 @@ body {
  * 破綻するため、既定（狭い画面）は縦並び＝インジケータを LCD の下へ回し、
  * 幅に余裕がある画面（`--lcd-row-breakpoint` 以上）でだけ実機どおり右側の
  * 縦並びへ切り替える。
+ *
+ * 【直した点・理由】 `max-width: 100%` が無いと、`align-items: center` の
+ * 効果でこの要素は「内容（#screen キャンバス）の幅」にそのまま伸びる。
+ * `canvas.ts` の `attachCanvas` は `canvas.width`（backing store, 高解像度側）を
+ * 先に設定してから `resize()` で表示用の `style.width` を計算するため、
+ * その一瞬（初回 `resize()` 実行前）はキャンバスが backing store のサイズ
+ * （既定で 576px）のまま描画され、この `.lcd-row` もその幅に引きずられて
+ * 576px まで伸びてしまう。狭い画面（375px 幅など）では `resize()` が
+ * `parent.clientWidth`（＝この要素の幅）を「利用可能幅」として読むため、
+ * 一度 576px に伸びた `.lcd-row` を基準に倍率を計算し続けてしまい、
+ * 実際のビューポートより大きい倍率（4倍等）に固定されたまま戻らなくなる
+ * （`html body { overflow-x: hidden }` により右側がはみ出して見えなくなり、
+ * 「LCD の中身が描かれない」ように見えた。実測で再現・特定した）。
+ * `max-width: 100%` を足し、この要素が親（`.screen-area`、`width: 100%`）の
+ * 幅を超えて伸びないようにすることで、`resize()` が最初から正しい
+ * 利用可能幅を読めるようにし、上記の自己増幅を断つ。
  */
 .lcd-row {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.6rem;
+  max-width: 100%;
+}
+
+/*
+ * 未実装キー通知（LCD 枠外）。
+ *
+ * 仮想キーボードの未実装キー（`ui/virtualKeyboard.ts` の `unsupported`）を押したとき、
+ * 「編集中の行を壊さずに、押しても無反応ではないと伝える」ための領域
+ * （`G850/CLAUDE.md` 依頼「未実装キーが入力中の行を壊す」の修正）。
+ * 常に領域を確保しておき（`min-height`）、テキストの有無を `opacity` の
+ * 切り替えだけで表現することで、通知が出た瞬間にレイアウトがガタつかないようにする。
+ * LCD 本体（`#screen`）・インジケータ（`.mode-indicator`）には一切触れない。
+ */
+.unsupported-notice {
+  min-height: 1.2em;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #8a6d1a;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.unsupported-notice--visible {
+  opacity: 1;
 }
 
 /*

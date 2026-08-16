@@ -7,8 +7,10 @@
  *
  * キー配列はユーザー提供の実機写真から起こした（`G850/CLAUDE.md` の依頼参照）。
  * 写真から確実に読み取れなかったキー・挙動が不確定なキーは押しても無反応にせず
- * `?UNSUPPORTED <名前>` をその場に打ち込む形で記録する（`machine.reportUnimplemented`
- * にも積む。親 CLAUDE.md「未実装を無言にしない」方針）。
+ * `machine.reportUnimplemented` に記録した上で、LCD 枠外の通知領域（`ui/main.ts`）へ
+ * 一時的に知らせる（親 CLAUDE.md「未実装を無言にしない」方針）。以前はラインへ
+ * `?UNSUPPORTED <名前>` を打ち込んでいたが、編集中の行を壊してしまうため、
+ * 編集中の行には触れない通知方式（`DirectMode.notifyUnsupported`）に変更した。
  *
  * **文字の字形（`machine/font.ts`）には一切触れない。** ここで描くキートップの
  * 文字は HTML/CSS のフォントで表示するだけで、LCD 側の描画とは無関係。
@@ -36,7 +38,10 @@ export type VirtualKeyAction =
   | { readonly type: 'modeToggle' }
   /** ON(BREAK) キー相当。 */
   | { readonly type: 'break' }
-  /** 未実装のキー。`name` を `?UNSUPPORTED <name>` として打ち込み、記録する。 */
+  /**
+   * 未実装のキー。編集中の行には触れず、`name` を記録（`machine.reportUnimplemented`）
+   * した上で通知（`DirectMode.notifyUnsupported`）するだけに留める。
+   */
   | { readonly type: 'unsupported'; readonly name: string };
 
 /** 仮想キーボードに並べる1個のキー。 */
@@ -217,8 +222,10 @@ export function pressVirtualKey(ctx: VirtualKeyboardContext, action: VirtualKeyA
       ctx.directMode.requestBreak();
       break;
     case 'unsupported':
+      // 編集中の行（LCD）には触れない。記録と通知だけ行う
+      // （依頼「未実装キーが入力中の行を壊す」の再発防止。ファイル冒頭のコメント参照）。
       ctx.machine.reportUnimplemented(action.name);
-      ctx.directMode.insertText(`?UNSUPPORTED ${action.name}`);
+      ctx.directMode.notifyUnsupported(action.name);
       break;
   }
 }

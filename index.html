@@ -35,6 +35,11 @@
           <span class="mode-indicator__item mode-indicator__item--unimplemented" data-indicator="DEG">DEG</span>
         </div>
       </div>
+      <!--
+        未実装キー通知（LCD 枠外）。押しても編集中の行を壊さない代わりに、
+        ここへ一時的にキー名を表示する（`src/ui/main.ts` 参照）。
+      -->
+      <div id="unsupported-notice" class="unsupported-notice" aria-live="polite"></div>
     </main>
 
     <div class="control-bar">

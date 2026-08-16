@@ -24,8 +24,22 @@ function manualScheduler(): Scheduler {
 function buildCtx() {
   const machine = new Machine(1);
   let renderCount = 0;
-  const dm = new DirectMode(machine, { render: () => renderCount++ }, manualScheduler());
-  return { machine, directMode: dm, render: () => renderCount++, getRenderCount: () => renderCount };
+  const unsupportedNotices: string[] = [];
+  const dm = new DirectMode(
+    machine,
+    {
+      render: () => renderCount++,
+      notifyUnsupported: (name) => unsupportedNotices.push(name),
+    },
+    manualScheduler(),
+  );
+  return {
+    machine,
+    directMode: dm,
+    render: () => renderCount++,
+    getRenderCount: () => renderCount,
+    getUnsupportedNotices: () => unsupportedNotices,
+  };
 }
 
 /** 現在のカーソル手前のテキストと突き合わせるため、画面全体を別 Machine で組んで比較する。 */
@@ -102,18 +116,37 @@ describe('pressVirtualKey', () => {
     expect(ctx.directMode.getMode()).toBe('RUN');
   });
 
-  it('未実装キー：?UNSUPPORTED を打ち込み、machine に記録が残る', () => {
+  it('未実装キー：画面には何も打ち込まず、machine に記録が残り、通知が飛ぶ', () => {
     const ctx = buildCtx();
     pressVirtualKey(ctx, { type: 'unsupported', name: 'TEXT' });
-    expectScreenText(ctx.machine, '?UNSUPPORTED TEXT');
+    // 【直した点・理由】 以前は `?UNSUPPORTED TEXT` をラインへ打ち込んでいたが、
+    // それだと編集中の行の内容が壊れてしまう（下の「編集中の行を壊さない」テスト参照）。
+    // 画面（＝編集中の行）は一切変えず、記録と通知だけを行うよう変更した。
+    expectScreenText(ctx.machine, '');
     expect(ctx.machine.getUnimplementedReport()).toEqual([{ name: 'TEXT', count: 1 }]);
+    expect(ctx.getUnsupportedNotices()).toEqual(['TEXT']);
   });
 
-  it('未実装キーを複数回押すと踏んだ回数が増える', () => {
+  it('未実装キーを複数回押すと踏んだ回数が増え、通知も都度飛ぶ', () => {
     const ctx = buildCtx();
     pressVirtualKey(ctx, { type: 'unsupported', name: 'MDF' });
     pressVirtualKey(ctx, { type: 'unsupported', name: 'MDF' });
     expect(ctx.machine.getUnimplementedReport()).toEqual([{ name: 'MDF', count: 2 }]);
+    expect(ctx.getUnsupportedNotices()).toEqual(['MDF', 'MDF']);
+  });
+
+  it('編集中の行を壊さない：未実装キーを押しても入力中の行の内容は変わらない', () => {
+    const ctx = buildCtx();
+    // 「10 PRINT "A」まで打っている途中で未実装キー（2ndF 等）を押しても、
+    // 編集中の行が `?UNSUPPORTED 2ndF` 等で汚染されてはならない
+    // （依頼「未実装キーが入力中の行を壊す」の再発防止）。
+    for (const ch of '10 PRINT "A') {
+      pressVirtualKey(ctx, { type: 'char', key: ch });
+    }
+    pressVirtualKey(ctx, { type: 'unsupported', name: '2ndF' });
+    expectScreenText(ctx.machine, '10 PRINT "A');
+    expect(ctx.machine.getUnimplementedReport()).toEqual([{ name: '2ndF', count: 1 }]);
+    expect(ctx.getUnsupportedNotices()).toEqual(['2ndF']);
   });
 
   it('データ定義：写真から確定した主要キーが全て揃っている', () => {

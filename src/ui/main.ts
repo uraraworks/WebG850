@@ -111,6 +111,10 @@ function main(): void {
   if (keyboardToggleButton === null || virtualKeyboardPanel === null) {
     throw new Error('仮想キーボード（開閉ボタン／パネル本体）が見つかりません');
   }
+  const unsupportedNotice = document.querySelector<HTMLDivElement>('#unsupported-notice');
+  if (unsupportedNotice === null) {
+    throw new Error('#unsupported-notice が見つかりません');
+  }
 
   const machine = new Machine();
   drawTestPattern(machine.screen);
@@ -175,7 +179,30 @@ function main(): void {
   window.addEventListener('keydown', attachAudioOnce, { once: true });
   window.addEventListener('click', attachAudioOnce, { once: true });
 
-  directMode = new DirectMode(machine, { render: renderAll });
+  /**
+   * 未実装の仮想キー通知（`DirectMode.notifyUnsupported`）を LCD 枠外の
+   * `#unsupported-notice` へ一時的に表示する。
+   *
+   * 【判断した点・理由】 以前は未実装キーを押すと `?UNSUPPORTED <名前>` を
+   * 編集中の行へ直接埋め込んでいたが、入力中の行を壊してしまっていた
+   * （`G850/CLAUDE.md` 依頼）。「押しても無反応にしない」方針は保ったまま、
+   * 表示先を LCD の外（このタイマー付き通知領域）へ切り出すことで両立させる。
+   * `setTimeout` で一定時間後に消す（`opacity` の切替のみ。`min-height` を
+   * 確保しているレイアウトなのでガタつかない。`src/ui/style.css` 参照）。
+   */
+  let unsupportedNoticeTimer: number | null = null;
+  const NOTICE_DURATION_MS = 1600;
+  const showUnsupportedNotice = (name: string): void => {
+    unsupportedNotice.textContent = `未実装キー: ${name}`;
+    unsupportedNotice.classList.add('unsupported-notice--visible');
+    if (unsupportedNoticeTimer !== null) window.clearTimeout(unsupportedNoticeTimer);
+    unsupportedNoticeTimer = window.setTimeout(() => {
+      unsupportedNotice.classList.remove('unsupported-notice--visible');
+      unsupportedNoticeTimer = null;
+    }, NOTICE_DURATION_MS);
+  };
+
+  directMode = new DirectMode(machine, { render: renderAll, notifyUnsupported: showUnsupportedNotice });
   updateModeIndicator(); // 初期状態（既定 PRO）を反映する。
 
   attachVirtualKeyboard(virtualKeyboardPanel, {

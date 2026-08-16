@@ -56,6 +56,12 @@ const MODE_TOGGLE_KEY = 'F2';
 export interface DirectModeCallbacks {
   /** 画面を再描画する。`Runtime` へそのまま渡す他、行編集・エラー表示の直後にも呼ぶ。 */
   render: () => void;
+  /**
+   * 未実装の仮想キーが押されたことを、編集中の行とは無関係に伝える
+   * （`notifyUnsupported` 参照）。呼び出し側（`ui/main.ts`）は LCD 枠外の
+   * 通知領域にキー名を一時的に表示する想定。省略可（テスト等で不要な場合）。
+   */
+  notifyUnsupported?: (name: string) => void;
 }
 
 export class DirectMode {
@@ -197,9 +203,10 @@ export class DirectMode {
    * 構文エラーになりかねない。そのため常に呼び出し側が渡した表記のまま入れる
    * （＝大文字のショートカット文字列を渡す使い方を想定）。
    *
-   * `?UNSUPPORTED <名前>` の埋め込み（未実装の仮想キー用）にも流用する：
-   * 実行を止めるほどではない「押しても無反応にしない」記録としてラインへ
-   * そのまま挿入するだけに留め、`machine.reportUnimplemented` は呼び出し側で行う。
+   * 【未実装の仮想キーには使わない】 以前はここで `?UNSUPPORTED <名前>` を
+   * ラインへ埋め込んでいたが、編集中の行（例：`10 PRINT "A` の途中）に
+   * 割り込んで内容を壊してしまう不具合があった（依頼「未実装キーが入力中の
+   * 行を壊す」）。未実装キーの通知は `notifyUnsupported` に分離した。
    */
   insertText(text: string): void {
     if (this.isRunning()) return;
@@ -208,6 +215,23 @@ export class DirectMode {
       this.machine.screen.writeText(ch);
     }
     this.callbacks.render();
+  }
+
+  /**
+   * 未実装の仮想キー用：編集中の行（`lineBuffer`／LCD）には一切触れず、
+   * 押されたキー名を `DirectModeCallbacks.notifyUnsupported` へそのまま
+   * 転送するだけの通知。
+   *
+   * 【判断した点・理由】 「未実装を無言にしない」方針と「編集中の行を壊さない」
+   * 要求を両立させるため、`insertText` のようにラインへ埋め込む方式をやめ、
+   * 表示先を呼び出し側（`ui/main.ts`）の LCD 枠外の通知領域に切り出した。
+   * `DirectMode` 自身は DOM を持たないため、通知の見せ方（表示時間・消し方等）は
+   * 呼び出し側の責務とし、ここでは中継のみ行う。
+   * `machine.reportUnimplemented` への記録は従来どおり呼び出し側
+   * （`ui/virtualKeyboard.ts`）が行う（このメソッドは記録を重複させない）。
+   */
+  notifyUnsupported(name: string): void {
+    this.callbacks.notifyUnsupported?.(name);
   }
 
   private backspace(): void {
