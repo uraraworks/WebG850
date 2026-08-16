@@ -29,6 +29,7 @@ import type { Machine } from '../machine/machine.ts';
 import {
   ANGLE_MODE_RESET_ON_RUN,
   FOR_CHECKS_BEFORE_BODY,
+  formatErrorPrefix,
   GRAPHICS_CURSOR_FOLLOWS_DRAWING,
   INPUT_ON_INVALID_NUMBER_REDO,
   markUncertainUsed,
@@ -339,9 +340,9 @@ export class Interpreter {
         result = this.executeStatement(stmt);
       } catch (e) {
         if (e instanceof BasicError) {
-          // `?` を付ける根拠は `appendErrorLineSuffix`（errors.ts）のコメント参照
-          // （以前はここに `?` が無く、ダイレクト実行側とだけ食い違っていた）。
-          this.haltWithMessage(`?ERROR ${e.code}`, e.lineNumber ?? line.lineNumber, false, true);
+          // 先頭 `?` の有無は `uncertain.ts` の `ERROR_PREFIX_QUESTION_MARK` に
+          // 集約した（以前はここに直書きで、ダイレクト実行側とだけ食い違っていた）。
+          this.haltWithMessage(formatErrorPrefix(e.code), e.lineNumber ?? line.lineNumber, false, true);
           continue;
         }
         if (e instanceof UnsupportedError) {

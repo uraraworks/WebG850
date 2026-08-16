@@ -68,8 +68,14 @@ function drawTestPattern(screen: Screen): void {
  * 以前は `FOR I=1 TO 5` だったが、それだと最終行のカーソル用にもう1行必要になり
  * 出力の先頭行が画面から欠けてしまう。実機ブラウザで実際に表示させて確認しながら
  * `TO 3` まで減らし、"RUN" の実行結果とカーソル行が画面（6行）に収まるようにした。
+ *
+ * 【直した点・理由】 以前は最終行が `PRINT "OK"` で、実行後に `DirectMode` が
+ * 出すシステムのプロンプト（`uncertain.ts` の `DIRECT_MODE_PROMPT`、既定 `OK`）と
+ * 同じ文字列が並び、「OK が2行あるが正しいのか」と利用者を混乱させた
+ * （デモの出力文字列とシステム表示は無関係だが、たまたま同じ語だったため紛らわしい）。
+ * デモ側の文字列を別のものに変えて区別できるようにする。
  */
-const SAMPLE_PROGRAM = '10 FOR I=1 TO 3\n20 PRINT I\n30 NEXT I\n40 PRINT "OK"';
+const SAMPLE_PROGRAM = '10 FOR I=1 TO 3\n20 PRINT I\n30 NEXT I\n40 PRINT "DONE"';
 
 function main(): void {
   // ページ全体のレイアウト（背景色・ヘッダー/フッター配置等）は `src/ui/style.css` に

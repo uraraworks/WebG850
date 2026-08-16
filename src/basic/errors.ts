@@ -98,13 +98,12 @@ export class UnsupportedError extends Error {
  * 埋め草の `?` を出していた。ダイレクト実行には元々行番号が無いのだから、
  * `IN` の節ごと出さないほうが自然（実機ブラウザ操作で `IN ?` の不自然さが発覚）。
  *
- * また、以前は「プログラム実行中の `ERROR n` には `?` が無く、ダイレクト実行の
- * `ERROR n` には `?` がある」という食い違いもあった。`UnsupportedError` が
- * 実行中も既に `?UNSUPPORTED name` と `?` を出している慣行に合わせ、
- * `ERROR` 側の呼び出し元（`interpreter.ts`/`directMode.ts` 双方）でも
- * 常に `?` を付けるよう揃えた。実機が画面に出す文字列そのものは未確認
- * （`docs/spec/SCHEMA.md`「`message_display` は未確認」節）なので、
- * 確認できたら呼び出し元の `prefix` 組み立てを差し替えればよい。
+ * `ERROR n` 先頭の `?` の有無は `uncertain.ts` の `ERROR_PREFIX_QUESTION_MARK`
+ * （`formatErrorPrefix`）に集約した。`interpreter.ts`/`ui/directMode.ts` の
+ * 双方がその関数を通すため、ここでは「行番号を付けるかどうか」だけを扱う。
+ * 実機が画面に出す文字列そのものは未確認（`docs/spec/SCHEMA.md`
+ * 「`message_display` は未確認」節）なので、確認できたら
+ * `uncertain.ts` 側を差し替えればよい。
  */
 export function appendErrorLineSuffix(prefix: string, lineNumber: number | null | undefined): string {
   const suffix = lineNumber == null ? '' : ` IN ${lineNumber}`;

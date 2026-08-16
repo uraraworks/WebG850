@@ -29,7 +29,9 @@ export type UncertainId =
   | 'SCROLL_DEFERRED_UNTIL_NEXT_WRITE'
   | 'CURSOR_SHAPE'
   | 'CURSOR_BLINK_PERIOD_MS'
-  | 'CURSOR_VISIBLE_WHEN_IDLE_ONLY';
+  | 'CURSOR_VISIBLE_WHEN_IDLE_ONLY'
+  | 'DIRECT_MODE_PROMPT'
+  | 'ERROR_PREFIX_QUESTION_MARK';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -437,8 +439,9 @@ export const SCROLL_DEFERRED_UNTIL_NEXT_WRITE = true;
  * 【根拠を得た】第三者の使用記録（kyoro205.blog.fc2.com/blog-entry-469.html、
  * 個人ブログのPC-G850使い方紹介）に「カーソルキーを押すと黒い■のカーソルが
  * 点滅し、移動させることができる」旨の記述があり、'block' かつ点滅する点は
- * 裏付けが取れた（verified_by: manual_3rd_party 相当。使用記録でありマニュアル
- * ではない点に注意）。ただし点滅周期（下記 `CURSOR_BLINK_PERIOD_MS`）は不明のまま。
+ * 裏付けが取れた（verified_by: usage_report_3rd_party。`docs/spec/SCHEMA.md` の
+ * 区分。使用記録でありマニュアルではない点に注意）。ただし点滅周期
+ * （下記 `CURSOR_BLINK_PERIOD_MS`）は不明のまま。
  * 詳細は docs/spec/operation_behavior.md 参照。
  */
 export const CURSOR_SHAPE: 'block' | 'underline' = 'block';
@@ -465,3 +468,78 @@ export const CURSOR_BLINK_PERIOD_MS = 500;
  * （ダイレクトモードの待機中）でだけ出す」を暫定採用する。
  */
 export const CURSOR_VISIBLE_WHEN_IDLE_ONLY = true;
+
+// ─────────────────────────────────────────────────────────────
+// ダイレクトモードの入力待ちプロンプト
+// （旧実装は src/ui/directMode.ts に 'OK\n' が直書きされ、この不確定仕様が
+//  どこにも記録されないまま毎回画面に出続けていた。ここへ集約する）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * コマンド実行後、次の入力を待つときに画面へ出すプロンプト文字列。
+ *
+ * 【推測で決めた点・理由】 `docs/spec/` のどの仕様書にも記載が無い。
+ * `OK` は MS-BASIC 系の慣行からの推測にすぎず、実機の根拠は無い。
+ *
+ * 一方 `docs/spec/operation_behavior.md`「未確定のまま残る事項」節の調査
+ * （出典2 `poke-com.jimdofree.com`）には「RUN MODE / PROGRAM MODE では `>`
+ * のみが表示される」旨の記述がある。ただしこの出典はシャープのポケコン全般
+ * （PC-E200 等を含む）を横断的に扱う記事で、**この記述が G850V/VS 固有かどうかは
+ * 確定できない**（verified_by: usage_report_3rd_party としても機種の切り分けが
+ * 弱い）。
+ *
+ * 資料の確度が「G850 固有と確定できない」段階でしかないため、いま `OK` から
+ * `>` へ切り替える根拠としては弱いと判断し、**暫定値は現状維持（`OK`）とする**。
+ * 差し替える場合はこの定数だけを変えればよい。
+ *
+ * 参照: docs/spec/operation_behavior.md「未確定のまま残る事項 > 入力待ちの
+ * プロンプト表示」
+ */
+export const DIRECT_MODE_PROMPT = 'OK';
+
+/**
+ * ダイレクトモードの入力待ちプロンプトの表示文字列（末尾の改行込み）を返す。
+ * `markUncertainUsed` は呼び出し側の都度ではなく、ここへ集約して1回だけ呼ぶ。
+ */
+export function directModePrompt(): string {
+  markUncertainUsed('DIRECT_MODE_PROMPT');
+  return `${DIRECT_MODE_PROMPT}\n`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// エラー表示先頭の "?"
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `true` なら `ERROR n` / `UNSUPPORTED name` の表示の先頭に `?` を付ける
+ * （例: `?ERROR 10`）。`false` なら付けない（例: `ERROR 10`）。
+ *
+ * 【推測で決めた点・理由】 `docs/spec/` のどの仕様書にも `?` の記載は無い。
+ * `docs/spec/operation_behavior.md` の調査（出典2）は「`ERROR ●●` を `CLS`
+ * キーで消せる」と書いており、先頭に `?` が付くとは読めない。
+ *
+ * 一方、このプロジェクト独自の `?UNSUPPORTED name`（未実装命令の表示。実機由来
+ * ではなくこのエミュレータだけの表示）は既に `?` 付きで実装されている。`ERROR`
+ * とは出自が違う表示だが、画面上では両者が同じ「実行が止まったときのメッセージ」
+ * という役割を共有しており、片方だけ `?` が有る/無いと利用者から見て一貫しない
+ * （「同じ場面で出るメッセージなのに時々 `?` が消える」という体験になる）。
+ *
+ * ここでは **`?UNSUPPORTED` との表示上の一貫性を、資料の字面（`ERROR ●●` に
+ * `?` が無いこと）より優先** し、`ERROR` 側にも `?` を付ける（＝現状維持）を
+ * 暫定採用する。`?UNSUPPORTED` 自体は実機由来ではないためこの定数の対象外
+ * （実機の書式に合わせる必要が無い）。資料の記述どおり `ERROR` からだけ `?` を
+ * 外す場合はここを `false` にする。
+ *
+ * 参照: docs/spec/operation_behavior.md「未確定のまま残る事項 > エラー表示の
+ * 実際の文字列」
+ */
+export const ERROR_PREFIX_QUESTION_MARK = true;
+
+/**
+ * `ERROR n` の表示プレフィックス（例: `?ERROR 10` または `ERROR 10`）を組み立てる。
+ * `?UNSUPPORTED` はこの関数を経由しない（上記コメントの通り実機由来ではないため）。
+ */
+export function formatErrorPrefix(code: number): string {
+  markUncertainUsed('ERROR_PREFIX_QUESTION_MARK');
+  return ERROR_PREFIX_QUESTION_MARK ? `?ERROR ${code}` : `ERROR ${code}`;
+}

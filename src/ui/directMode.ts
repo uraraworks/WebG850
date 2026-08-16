@@ -24,6 +24,7 @@ import { BUILTINS } from '../basic/functions/index.ts';
 import { Interpreter } from '../basic/interpreter.ts';
 import { parseProgram } from '../basic/parser.ts';
 import { ProgramStore } from '../basic/programStore.ts';
+import { directModePrompt, formatErrorPrefix } from '../basic/uncertain.ts';
 import type { Machine } from '../machine/machine.ts';
 import { applyCapsLock } from '../machine/keyboard.ts';
 import { TEXT_COLS } from '../machine/screen.ts';
@@ -273,9 +274,13 @@ export class DirectMode {
   /**
    * ダイレクト実行が終わったとき（正常終了・BREAK・STOP・ERROR・?UNSUPPORTED の
    * いずれでも）に呼ばれる。実機の慣行に合わせ、エラー時も「既存のエラー表示
-   * （`interpreter.ts` 側が既に出している）→ OK → 次の入力待ち」という同じ経路に
-   * 揃える（エラーの有無で分岐すると「エラー時だけ様子が違う」実装になり、
+   * （`interpreter.ts` 側が既に出している）→ プロンプト → 次の入力待ち」という
+   * 同じ経路に揃える（エラーの有無で分岐すると「エラー時だけ様子が違う」実装になり、
    * かえって分かりにくいため）。
+   *
+   * プロンプト文字列そのもの（既定 `OK`）は `uncertain.ts` の
+   * `directModePrompt`/`DIRECT_MODE_PROMPT` に集約している。マニュアルに
+   * 記載が無い推測値である旨・調査で `>` の可能性も出ている旨はそちらのコメント参照。
    */
   private onDirectEnd(statements: readonly Stmt[]): void {
     // `NEW` はインタプリタ内部では実行状態のリセットまでしか行わない設計
@@ -285,7 +290,7 @@ export class DirectMode {
       this.programStore.clear();
       this.interpreter = this.buildInterpreter();
     }
-    this.machine.screen.writeText('OK\n');
+    this.machine.screen.writeText(directModePrompt());
     this.callbacks.render();
     this.busy = false;
   }
@@ -294,13 +299,16 @@ export class DirectMode {
    * 行番号部分の組み立ては `appendErrorLineSuffix`（`src/basic/errors.ts`）に
    * 集約している。ダイレクト実行には行番号が無いので、`?` の埋め草は出さず
    * 「IN 部分ごと省く」（旧実装は `IN ${lineNumber ?? '?'}` で `IN ?` を出していたが、
-   * 実機ブラウザで見ると不自然な表示だったため）。`?` の要否・書式の根拠は
-   * `appendErrorLineSuffix` のコメントを参照。
+   * 実機ブラウザで見ると不自然な表示だったため）。
+   *
+   * `ERROR n` 先頭の `?` の有無は `uncertain.ts` の `formatErrorPrefix` に集約
+   * している（`?UNSUPPORTED` はこのプロジェクト独自の表示なので対象外。
+   * 実機由来の書式に合わせる必要が無いため直書きのままにしている）。
    */
   private reportError(e: unknown, lineNumber: number | null): void {
     let message: string;
     if (e instanceof BasicError) {
-      message = appendErrorLineSuffix(`?ERROR ${e.code}`, e.lineNumber ?? lineNumber);
+      message = appendErrorLineSuffix(formatErrorPrefix(e.code), e.lineNumber ?? lineNumber);
     } else if (e instanceof UnsupportedError) {
       message = appendErrorLineSuffix(`?UNSUPPORTED ${e.name_}`, e.lineNumber ?? lineNumber);
     } else {
