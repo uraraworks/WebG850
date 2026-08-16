@@ -26,7 +26,10 @@ export type UncertainId =
   | 'BEEP_DURATION_AS_PERIOD_COUNT'
   | 'INPUT_ON_INVALID_NUMBER'
   | 'GRAPHICS_CURSOR_FOLLOWS_DRAWING'
-  | 'SCROLL_DEFERRED_UNTIL_NEXT_WRITE';
+  | 'SCROLL_DEFERRED_UNTIL_NEXT_WRITE'
+  | 'CURSOR_SHAPE'
+  | 'CURSOR_BLINK_PERIOD_MS'
+  | 'CURSOR_VISIBLE_WHEN_IDLE_ONLY';
 
 /** 実行時に踏んだ不確定仕様の集合。プロセス生存中は積み上がる一方（明示的に reset するまで消えない）。 */
 const usedUncertainIds = new Set<UncertainId>();
@@ -410,3 +413,48 @@ export const GRAPHICS_CURSOR_FOLLOWS_DRAWING = true;
  * 参照: docs/design/phase1_architecture.md「画面モデル」節
  */
 export const SCROLL_DEFERRED_UNTIL_NEXT_WRITE = true;
+
+// ─────────────────────────────────────────────────────────────
+// テキストカーソル（LCD上のラインエディタ）の見た目
+// ─────────────────────────────────────────────────────────────
+//
+// `docs/spec/basic_commands.yaml` はテキストカーソルの「位置」の規則
+// （PRINT/LOCATE 等でどこへ動くか）しか記述しておらず、カーソルの
+// 見た目（形・点滅周期・表示するタイミング）は一切記載が無い。3項目とも
+// マニュアルからは確定できないため、ここへ集約して暫定値を1箇所にまとめる。
+// 実装は `src/machine/cursorOverlay.ts`（LCDのビットマップは汚さず、
+// canvas 描画時にだけ重ねる。`POINT` の結果に影響しない）。
+
+/**
+ * カーソルの形。`'block'` はセル全体を反転、`'underline'` はセル最下段の
+ * 1ドット行だけを反転する。
+ *
+ * 【推測で決めた点・理由】 マニュアルに記載が無い。144×48・1セル6×8ドットという
+ * 非常に小さい LCD では、下線（1ドット行）だと視認性が低く「どこに文字が
+ * 入るか」が分かりにくいと判断し、ブロック（セル全体反転）を暫定採用する。
+ * 差し替える場合はこの定数だけを変えればよい。
+ */
+export const CURSOR_SHAPE: 'block' | 'underline' = 'block';
+
+/**
+ * カーソルの点滅周期（ミリ秒）。この時間ごとに表示⇔非表示が切り替わる
+ * （1周期 = 表示 + 非表示で `CURSOR_BLINK_PERIOD_MS * 2`）。
+ *
+ * 【推測で決めた点・理由】 マニュアルに記載が無い。一般的なターミナル・
+ * エディタで広く使われる 500ms 前後の点滅周期を、実測値が無い前提での
+ * 妥当な既定値として暫定採用する。
+ */
+export const CURSOR_BLINK_PERIOD_MS = 500;
+
+/**
+ * `true` なら、ダイレクトモードの入力待ち（実行中でない状態）のときだけ
+ * カーソルを表示する。`false` ならプログラム実行中も（`INPUT` 待ち以外の
+ * 場面を含め）常に表示する。
+ *
+ * 【推測で決めた点・理由】 マニュアルに記載が無い。プログラム実行中に
+ * 画面の好きな位置へカーソルが出ていると、`PRINT`/`LOCATE` によるカーソル
+ * 移動がユーザー入力とは無関係に頻繁に起こるため、点滅カーソルが
+ * ちらついて画面を読みにくくすると判断した。「入力を受け付けている場面
+ * （ダイレクトモードの待機中）でだけ出す」を暫定採用する。
+ */
+export const CURSOR_VISIBLE_WHEN_IDLE_ONLY = true;

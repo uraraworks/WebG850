@@ -7,6 +7,7 @@ import { Machine } from '../machine/machine.ts';
 import type { Screen } from '../machine/screen.ts';
 import { App } from './app.ts';
 import { attachCanvas } from './canvas.ts';
+import { DirectMode } from './directMode.ts';
 import { isFormControlTarget } from './keyRouting.ts';
 
 const FIRST_ASCII = 0x20;
@@ -75,22 +76,16 @@ function main(): void {
   const machine = new Machine();
   drawTestPattern(machine.screen);
 
-  const { render, resize } = attachCanvas(canvas, machine.screen);
+  // `directMode` は下で構築するが、canvas のカーソル描画コールバックは
+  // 先に結線しておきたいため、参照だけ先に確保しておく
+  // （実際に呼ばれるのは render() 実行時＝構築後なので問題ない）。
+  let directMode: DirectMode | null = null;
+
+  const { render, resize } = attachCanvas(canvas, machine.screen, {
+    getCursor: () => directMode?.getCursorOverlay() ?? null,
+  });
   render();
   window.addEventListener('resize', resize);
-
-  // キー入力の行き先分離（依頼「3.」）：プログラム入力欄や RUN/BREAK/LIST ボタンに
-  // フォーカスがあるあいだの打鍵は、`isFormControlTarget` で弾いてエミュレータへ
-  // 渡さない。それ以外（ページ本体・canvas 等にフォーカスがある状態）の打鍵は
-  // 従来どおり `machine.keyboard` へ渡し、INPUT/INKEY$ が正しく受け取れるようにする。
-  window.addEventListener('keydown', (e) => {
-    if (isFormControlTarget(e.target)) return;
-    machine.keyboard.handleKeyDown(e);
-  });
-  window.addEventListener('keyup', (e) => {
-    if (isFormControlTarget(e.target)) return;
-    machine.keyboard.handleKeyUp(e);
-  });
 
   // AudioContext はユーザー操作（クリック・キー押下等）のイベントハンドラの中でしか
   // 生成できないブラウザがあるため、最初の操作で一度だけ接続する。
@@ -106,6 +101,28 @@ function main(): void {
   window.addEventListener('click', attachAudioOnce, { once: true });
 
   const app = new App(machine, { render });
+  directMode = new DirectMode(machine, { render });
+
+  // キー入力の行き先分離（依頼「3./4.」）：
+  // - プログラム入力欄や RUN/BREAK/LIST ボタンにフォーカスがあるあいだの打鍵は、
+  //   `isFormControlTarget` で弾いてエミュレータへ渡さない（従来どおり）。
+  // - それ以外は `machine.keyboard` へ渡す（BREAK キー判定・INPUT/INKEY$ 用の
+  //   バッファ蓄積は常時行う。実行中でなくても無害で、RUN のたびに reset される）。
+  // - 加えて、**何も実行中でないとき**（`App`／`DirectMode` のどちらも）だけ、
+  //   `DirectMode`（LCD 上のラインエディタ）へも渡す。これが既定の入力先になる
+  //   （依頼「4. 既定はエミュレータ」）。実行中は渡さない（依頼「実行中は
+  //   打鍵がラインエディタに入らないこと」）。
+  window.addEventListener('keydown', (e) => {
+    if (isFormControlTarget(e.target)) return;
+    machine.keyboard.handleKeyDown(e);
+    if (!app.isRunning() && !directMode!.isRunning()) {
+      directMode!.handleKeyDown(e);
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (isFormControlTarget(e.target)) return;
+    machine.keyboard.handleKeyUp(e);
+  });
 
   programInput.value = SAMPLE_PROGRAM;
 
@@ -113,7 +130,13 @@ function main(): void {
     app.run(programInput.value);
   });
   breakButton.addEventListener('click', () => {
+    // BREAK ボタンはどちらの実行系（テキスト入力欄からの RUN／LCD 直接入力からの
+    // RUN）が動いていても効くようにする。片方しか実行していない側の
+    // `requestBreak()` は「実行中でないのに呼ばれる」だけで無害（フラグを
+    // 立てるだけで、次に行頭へ来たときに消費される。実行していなければ
+    // 消費されるタイミング自体が来ない）。
     app.break();
+    directMode!.requestBreak();
   });
   listButton.addEventListener('click', () => {
     app.list();

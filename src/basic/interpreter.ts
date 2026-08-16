@@ -251,7 +251,40 @@ export class Interpreter {
     yield* this.coreLoop();
   }
 
+  /**
+   * ダイレクトモード（LCD上のラインエディタ）の「行番号なしの行」用エントリポイント。
+   * `docs/design` には無い、今回の依頼（LCD直接編集）で追加した実行経路。
+   *
+   * `statements` は `this.program` に属さない一時的な1行として扱う（`directLine`／
+   * `DIRECT_LINE_INDEX` 参照）。変数・スタック等は**リセットしない**
+   * （ダイレクトモードで複数のコマンドを打っても、直前の実行結果の変数を
+   * 使い続けられる一般的な BASIC の慣行に合わせるため）。`RUN` 文自身は
+   * 従来どおり `executeRun` が内部で `resetForRun` を呼ぶので、この行に
+   * `RUN` だけを渡した場合は結果的にリセットされる。
+   *
+   * `GOTO`/`GOSUB`/`RUN` 等でこの1行の外（＝本物のプログラム）へ制御が移った
+   * 場合は、`coreLoop` がそのまま `this.program` 側を実行し続ける
+   * （`pc.lineIndex` が `DIRECT_LINE_INDEX` から実プログラムの添字へ書き換わるため）。
+   * 逆にジャンプせずこの1行の文を最後まで実行したら、そこでプログラム本体には
+   * 進まず実行を終える（`coreLoop` 内の `DIRECT_LINE_INDEX` 分岐参照）。
+   */
+  *runDirect(statements: readonly Stmt[]): Generator<Suspend, void, void> {
+    this.directLine = { lineNumber: null, statements };
+    this.pc = { lineIndex: Interpreter.DIRECT_LINE_INDEX, stmtIndex: 0 };
+    this.suspendedAtSamePC = false;
+    yield* this.coreLoop();
+  }
+
   // ── 実行ループ ──────────────────────────────────────────
+
+  /**
+   * ダイレクトモードの1行を指す仮想の `pc.lineIndex`。`this.program` の
+   * 添字（0以上）とは絶対に重ならない値として負数を使う（`runDirect` 参照）。
+   */
+  private static readonly DIRECT_LINE_INDEX = -1;
+
+  /** ダイレクトモードの1行（`runDirect` で渡された、`this.program` に属さない一時的な行）。 */
+  private directLine: ProgramLine | null = null;
 
   private *coreLoop(): Generator<Suspend, void, void> {
     this.running = true;
@@ -261,7 +294,8 @@ export class Interpreter {
         return;
       }
 
-      const line = this.program[this.pc.lineIndex];
+      const line =
+        this.pc.lineIndex === Interpreter.DIRECT_LINE_INDEX ? this.directLine : this.program[this.pc.lineIndex];
       if (!line) {
         // プログラム終端まで実行し尽くした（暗黙の END）。
         this.running = false;
@@ -289,6 +323,13 @@ export class Interpreter {
 
       const stmt = line.statements[this.pc.stmtIndex];
       if (!stmt) {
+        if (this.pc.lineIndex === Interpreter.DIRECT_LINE_INDEX) {
+          // ダイレクトモードの1行を最後まで実行し終えた（途中でジャンプしなかった）。
+          // 実プログラムの先頭（lineIndex 0）へは進めず、ここで終了する。
+          this.running = false;
+          this.contAvailable = false;
+          continue;
+        }
         this.pc = { lineIndex: this.pc.lineIndex + 1, stmtIndex: 0 };
         continue;
       }

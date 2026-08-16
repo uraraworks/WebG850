@@ -13,6 +13,7 @@
  * 中間的な色（`DOT_OFF_COLOR`）を採用した。
  */
 
+import { applyCursorOverlay, type CursorOverlayState } from '../machine/cursorOverlay.ts';
 import type { Screen } from '../machine/screen.ts';
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from '../machine/screen.ts';
 
@@ -94,8 +95,19 @@ export interface CanvasBinding {
   resize: () => void;
 }
 
+/**
+ * `getCursor` はテキストカーソルの現在位置を返すコールバック（表示しないときは `null`）。
+ * 点滅・重畳描画の実体は `machine/cursorOverlay.ts`（`Screen` のビットマップ自体は
+ * 汚さない。詳細はそちらのコメント参照）。省略時はカーソルを描画しない
+ * （既存呼び出し元・既存テストへの影響を避けるため）。
+ */
+export interface AttachCanvasOptions {
+  getCursor?: () => CursorOverlayState | null;
+}
+
 /** `<canvas>` を画面モデルに接続する。backing store を 144×48 に固定し、CSS 拡大の準備をする。 */
-export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen): CanvasBinding {
+export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen, options: AttachCanvasOptions = {}): CanvasBinding {
+  const { getCursor } = options;
   canvas.width = SCREEN_WIDTH;
   canvas.height = SCREEN_HEIGHT;
   canvas.style.imageRendering = 'pixelated';
@@ -138,7 +150,8 @@ export function attachCanvas(canvas: HTMLCanvasElement, screen: Screen): CanvasB
   }
 
   function render(): void {
-    const dots = screen.getDots();
+    const cursor = getCursor ? getCursor() : null;
+    const dots = applyCursorOverlay(screen.getDots(), cursor, Date.now());
     const data = imageData.data;
     for (let i = 0; i < dots.length; i++) {
       const on = dots[i] !== 0;

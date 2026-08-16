@@ -15,6 +15,7 @@
  *   `frameCount` で数えられるようにしておき、後から検証に使えるようにする
  */
 
+import type { Stmt } from '../basic/ast.ts';
 import type { Interpreter, Suspend } from '../basic/interpreter.ts';
 import type { Keyboard } from '../machine/keyboard.ts';
 
@@ -77,6 +78,17 @@ export class Runtime {
   /** `CONT` 相当。`cont()` ジェネレータを取得してループを開始する。 */
   resumeCont(): void {
     this.gen = this.interpreter.cont();
+    this.beginLoop();
+  }
+
+  /**
+   * ダイレクトモード（LCD上のラインエディタ）で「行番号なしの行」を確定したとき用。
+   * `Interpreter.runDirect()` のジェネレータでループを開始する（`docs/design` には
+   * 無い、今回の依頼で追加したエントリポイント。詳細は `interpreter.ts` の
+   * `runDirect` のコメント参照）。
+   */
+  startDirect(statements: readonly Stmt[]): void {
+    this.gen = this.interpreter.runDirect(statements);
     this.beginLoop();
   }
 
