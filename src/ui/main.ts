@@ -236,7 +236,7 @@ function main(): void {
     render: renderAll,
   });
 
-  // ディスクライブラリ（「棚」）：取り込んだプログラムは localStorage にのみ保存され
+  // ディスクライブラリ：取り込んだプログラムは localStorage にのみ保存され
   // （`LocalStorageLibraryStore`）、リポジトリにもサーバにも残らない（依頼「絶対の制約」）。
   // `panel.ts` は `DirectMode` を直接知らないため、読み込みはコールバックで橋渡しする。
   attachLibraryPanel(libraryPanel, {
