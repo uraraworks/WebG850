@@ -16,6 +16,8 @@ import type { Screen } from '../machine/screen.ts';
 import { attachCanvas } from './canvas.ts';
 import { DirectMode } from './directMode.ts';
 import { dispatchKeydown, isFormControlTarget } from './keyRouting.ts';
+import { LocalStorageLibraryStore } from './library/localStorageLibraryStore.ts';
+import { attachLibraryPanel } from './library/panel.ts';
 import { LocalStorageByteStorage } from './memoryStorage.ts';
 import { attachVirtualKeyboard } from './virtualKeyboard.ts';
 
@@ -111,6 +113,11 @@ function main(): void {
   const virtualKeyboardPanel = document.querySelector<HTMLDivElement>('#virtual-keyboard');
   if (keyboardToggleButton === null || virtualKeyboardPanel === null) {
     throw new Error('仮想キーボード（開閉ボタン／パネル本体）が見つかりません');
+  }
+  const libraryToggleButton = document.querySelector<HTMLButtonElement>('#btn-panel-library');
+  const libraryPanel = document.querySelector<HTMLDivElement>('#library-panel');
+  if (libraryToggleButton === null || libraryPanel === null) {
+    throw new Error('ディスクライブラリ（開閉ボタン／パネル本体）が見つかりません');
   }
   const unsupportedNotice = document.querySelector<HTMLDivElement>('#unsupported-notice');
   if (unsupportedNotice === null) {
@@ -229,6 +236,14 @@ function main(): void {
     render: renderAll,
   });
 
+  // ディスクライブラリ（「棚」）：取り込んだプログラムは localStorage にのみ保存され
+  // （`LocalStorageLibraryStore`）、リポジトリにもサーバにも残らない（依頼「絶対の制約」）。
+  // `panel.ts` は `DirectMode` を直接知らないため、読み込みはコールバックで橋渡しする。
+  attachLibraryPanel(libraryPanel, {
+    store: new LocalStorageLibraryStore(),
+    onLoadProgram: (program) => directMode!.loadProgram(program),
+  });
+
   // キー入力の行き先分離（依頼「3./4.」）：
   // - プログラム入力欄パネル（`#program-input` や中のボタン）にフォーカスがあるあいだの
   //   打鍵は、`isFormControlTarget` で弾いてエミュレータへ渡さない（従来どおり）。
@@ -271,32 +286,39 @@ function main(): void {
     directMode!.toggleMode();
   });
 
-  // 入力欄パネル／仮想キーボードパネルの開閉（同一作者の WebX68k の
+  // 入力欄／仮想キーボード／ディスクライブラリの3パネルの開閉（同一作者の WebX68k の
   // #btn-panel-keyboard と同じ流儀：aria-pressed で状態を持ち、`hidden` クラスで
-  // 表示を切り替える）。両パネルは同時に開かない（依頼「既存のコピペ用パネルと
-  // 同時に開かないようにすること」）ため、一方を開くときはもう一方を必ず閉じる。
-  let editorPanelOpen = false;
-  let keyboardPanelOpen = false;
-  const setEditorPanelOpen = (open: boolean): void => {
-    editorPanelOpen = open;
-    editorPanel.classList.toggle('hidden', !open);
-    panelToggleButton.setAttribute('aria-pressed', String(open));
-    if (open) setKeyboardPanelOpen(false);
+  // 表示を切り替える）。どのパネルも同時に開かない（依頼「既存のコピペ用パネルと
+  // 同時に開かないようにすること」）。
+  //
+  // 【判断した点・理由】 以前は2枚を手書きの相互参照（開いたらもう一方を閉じる）で
+  // 済ませていたが、3枚になると手書きの相互参照は組み合わせ数が増えて破綻する
+  // （依頼「配列ベースの汎用関数にリファクタして3枚を等しく扱うこと」）。
+  // 各パネルを `{ button, panel }` の配列として持ち、「開くときは自分以外を全部閉じる」
+  // という1つの関数に共通化する。パネル枚数が増えても登録を1行足すだけで済む。
+  interface PanelEntry {
+    readonly button: HTMLButtonElement;
+    readonly panel: HTMLElement;
+    open: boolean;
+  }
+  const panels: readonly PanelEntry[] = [
+    { button: panelToggleButton, panel: editorPanel, open: false },
+    { button: keyboardToggleButton, panel: virtualKeyboardPanel, open: false },
+    { button: libraryToggleButton, panel: libraryPanel, open: false },
+  ];
+  const setPanelOpen = (target: PanelEntry, open: boolean): void => {
+    for (const entry of panels) {
+      entry.open = entry === target ? open : false;
+      entry.panel.classList.toggle('hidden', !entry.open);
+      entry.button.setAttribute('aria-pressed', String(entry.open));
+    }
   };
-  const setKeyboardPanelOpen = (open: boolean): void => {
-    keyboardPanelOpen = open;
-    virtualKeyboardPanel.classList.toggle('hidden', !open);
-    keyboardToggleButton.setAttribute('aria-pressed', String(open));
-    if (open) setEditorPanelOpen(false);
-  };
-  setEditorPanelOpen(editorPanelOpen);
-  setKeyboardPanelOpen(keyboardPanelOpen);
-  panelToggleButton.addEventListener('click', () => {
-    setEditorPanelOpen(!editorPanelOpen);
-  });
-  keyboardToggleButton.addEventListener('click', () => {
-    setKeyboardPanelOpen(!keyboardPanelOpen);
-  });
+  for (const entry of panels) {
+    setPanelOpen(entry, false);
+    entry.button.addEventListener('click', () => {
+      setPanelOpen(entry, !entry.open);
+    });
+  }
 
   // 「プログラムに取り込む」ボタン：入力欄の内容を `DirectMode` の `ProgramStore` へ
   // 反映するだけで、実行はしない（実行は操作バーの RUN ボタンに一本化する）。

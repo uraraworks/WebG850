@@ -440,6 +440,152 @@ body {
   border-style: dashed;
 }
 
+/*
+ * ディスクライブラリ（「棚」）パネル。既定では `.hidden` で隠す（他パネルと同じ流儀。
+ * `ui/main.ts` の配列ベースの排他制御を参照）。狭い画面でも一覧を操作できるよう、
+ * 一覧部分は独立してスクロールさせる（`max-height` + `overflow-y`）。
+ */
+.library-panel {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.library-panel.hidden {
+  display: none;
+}
+
+.library-panel--dragover {
+  outline: 2px dashed #8a8a8a;
+  outline-offset: 4px;
+}
+
+.library-panel__note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #c7c6c0;
+}
+
+.library-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* ネイティブの file input はブラウザごとに見た目がバラバラなので隠し、
+   同じ見た目の `<label>` をボタン代わりに使う（`for`/`id` で紐付け）。 */
+.library-panel__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.library-panel__file-label {
+  flex: 1 1 30%;
+  text-align: center;
+}
+
+.library-panel__ignored-notice {
+  min-height: 1.2em;
+  margin: 0;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #8a6d1a;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.library-panel__ignored-notice--visible {
+  opacity: 1;
+}
+
+.library-panel__empty {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #c7c6c0;
+}
+
+.library-panel__empty.hidden {
+  display: none;
+}
+
+.library-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.library-panel__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--footer-btn-border);
+  border-radius: 4px;
+  background: var(--footer-btn-bg);
+}
+
+.library-panel__row-main {
+  flex: 1 1 auto;
+  min-width: 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  cursor: pointer;
+}
+
+.library-panel__row-title {
+  color: var(--footer-text);
+  font-size: 0.9rem;
+  font-weight: bold;
+  word-break: break-all;
+}
+
+.library-panel__row-added-at {
+  color: #a8a8a8;
+  font-size: 0.68rem;
+  font-family: monospace;
+}
+
+.library-panel__row-note {
+  flex: 1 1 8rem;
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--footer-btn-border);
+  border-radius: 4px;
+  background: #1c1c1c;
+  color: #e8e8e0;
+  font-size: 0.8rem;
+}
+
+.library-panel__row-remove {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--footer-btn-border);
+  border-radius: 4px;
+  background: #7a3030;
+  color: var(--footer-text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.library-panel__row-remove:hover {
+  background: #8f3a3a;
+}
+
 /* フッター */
 
 .site-footer {
