@@ -19,6 +19,7 @@ import { dispatchKeydown, isFormControlTarget } from './keyRouting.ts';
 import { LocalStorageLibraryStore } from './library/localStorageLibraryStore.ts';
 import { attachLibraryPanel } from './library/panel.ts';
 import { LocalStorageByteStorage } from './memoryStorage.ts';
+import { createProgramInputSync } from './programInputSync.ts';
 import { attachVirtualKeyboard } from './virtualKeyboard.ts';
 
 const FIRST_ASCII = 0x20;
@@ -220,6 +221,15 @@ function main(): void {
   directMode = new DirectMode(machine, { render: renderAll, notifyUnsupported: showUnsupportedNotice });
   updateModeIndicator(); // 初期状態（既定 PRO）を反映する。
 
+  // 入力欄（`#program-input`）を「現在のプログラム（`DirectMode` の `ProgramStore`）の
+  // ビュー」として同期する（同期ロジック本体・判断理由は `programInputSync.ts` 参照）。
+  const { loadProgramIntoDirectMode, syncProgramInputIfUntouched } = createProgramInputSync(directMode, {
+    getValue: () => programInput.value,
+    setValue: (value) => {
+      programInput.value = value;
+    },
+  });
+
   // タブが非表示の間はカーソル点滅の再描画を止める（`DirectMode.pauseCursorBlink` 参照。
   // `DirectMode` 自身は `document` を持たない設計のため、購読はここで行う）。
   document.addEventListener('visibilitychange', () => {
@@ -241,7 +251,7 @@ function main(): void {
   // `panel.ts` は `DirectMode` を直接知らないため、読み込みはコールバックで橋渡しする。
   attachLibraryPanel(libraryPanel, {
     store: new LocalStorageLibraryStore(),
-    onLoadProgram: (program) => directMode!.loadProgram(program),
+    onLoadProgram: (program) => loadProgramIntoDirectMode(program),
   });
 
   // キー入力の行き先分離（依頼「3./4.」）：
@@ -263,8 +273,6 @@ function main(): void {
     if (isFormControlTarget(e.target)) return;
     machine.keyboard.handleKeyUp(e);
   });
-
-  programInput.value = SAMPLE_PROGRAM;
 
   // RUN/LIST ボタン：LCD へそのコマンドを打って Enter を押したのと同じ経路
   // （`DirectMode.runCommand`）を通す。画面は消えず、コマンド自体も画面に表示される
@@ -300,9 +308,13 @@ function main(): void {
     readonly button: HTMLButtonElement;
     readonly panel: HTMLElement;
     open: boolean;
+    /** このパネルを開いたとき（他パネルを閉じて自分を開いた瞬間）に呼ぶ追加処理。 */
+    readonly onOpen?: () => void;
   }
   const panels: readonly PanelEntry[] = [
-    { button: panelToggleButton, panel: editorPanel, open: false },
+    // 「編集」パネルを開くたび、LCD 側での編集（未取り込みの編集が無ければ）を
+    // 入力欄へ追従させる（不具合修正：未取り込みの編集がある場合は上書きしない）。
+    { button: panelToggleButton, panel: editorPanel, open: false, onOpen: syncProgramInputIfUntouched },
     { button: keyboardToggleButton, panel: virtualKeyboardPanel, open: false },
     { button: libraryToggleButton, panel: libraryPanel, open: false },
   ];
@@ -312,6 +324,7 @@ function main(): void {
       entry.panel.classList.toggle('hidden', !entry.open);
       entry.button.setAttribute('aria-pressed', String(entry.open));
     }
+    if (open) target.onOpen?.();
   };
   for (const entry of panels) {
     setPanelOpen(entry, false);
@@ -323,7 +336,7 @@ function main(): void {
   // 「プログラムに取り込む」ボタン：入力欄の内容を `DirectMode` の `ProgramStore` へ
   // 反映するだけで、実行はしない（実行は操作バーの RUN ボタンに一本化する）。
   loadProgramButton.addEventListener('click', () => {
-    directMode!.loadProgram(programInput.value);
+    loadProgramIntoDirectMode(programInput.value);
   });
 
   // 起動時のセルフチェック用テストパターンを消してからサンプルプログラムを
@@ -331,7 +344,7 @@ function main(): void {
   // ここで明示的に `cls()` するのは、あくまで「起動直後の初期化演出」としての
   // 一度きりの処理であり、RUN ボタン自体（`DirectMode.runCommand`）は画面を消さない。
   machine.screen.cls();
-  directMode.loadProgram(SAMPLE_PROGRAM);
+  loadProgramIntoDirectMode(SAMPLE_PROGRAM);
   directMode.runCommand('RUN');
 }
 

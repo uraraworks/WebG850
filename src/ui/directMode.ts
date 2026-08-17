@@ -319,6 +319,19 @@ export class DirectMode {
     this.callbacks.render();
   }
 
+  /**
+   * 現在の `ProgramStore` の中身を `parseProgram()` に渡せる形のテキストで返す。
+   *
+   * テキスト入力欄パネル（`ui/main.ts`）が「入力欄＝現在のプログラムのビュー」
+   * として同期するために使う。LCD 上でのライン単位の編集（`commitNumberedLine`）は
+   * ここを経由しないと入力欄側からは見えないため、ディスクライブラリからの
+   * 読み込み直後や編集パネルを開いたタイミングで呼んでもらう想定
+   * （同期のタイミング判断自体は `ui/main.ts` の責務。`DirectMode` は DOM を知らない）。
+   */
+  getProgramSource(): string {
+    return this.programStore.toSource();
+  }
+
   private commitLine(): void {
     const text = this.lineBuffer;
     this.lineBuffer = '';
